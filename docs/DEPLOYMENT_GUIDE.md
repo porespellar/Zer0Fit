@@ -290,7 +290,46 @@ The LLM summarizes: *"The upward trend continues with a clear seasonal pattern â
 
 ---
 
-## Part 6: Troubleshooting
+## Part 6: Other Client Integrations
+
+Zer0Fit's MCP server works with any client that supports standard MCP SSE or Streamable HTTP transport.
+
+### Claude Code
+
+```bash
+claude mcp add --transport sse zer0fit http://YOUR-SERVER-IP:8002/sse
+```
+
+Or add to `~/.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "zer0fit": {
+      "transport": "sse",
+      "url": "http://YOUR-SERVER-IP:8002/sse"
+    }
+  }
+}
+```
+
+### Codex CLI
+
+```bash
+codex mcp add zer0fit --url http://YOUR-SERVER-IP:8002/mcp
+```
+
+Then use with `codex exec`:
+```bash
+codex exec "Use zer0fit to inspect the data and classify the species."
+```
+
+### OpenCode
+
+Not supported natively â€” OpenCode's MCP support is limited to stdio transport only and does not accept remote SSE/HTTP URLs.
+
+---
+
+## Part 7: Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

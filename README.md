@@ -187,7 +187,64 @@ Zero-shot tabular classification/regression via Google TabFM v1.0.0.
 
 ---
 
-## Environment Variables
+## Clients & Integrations
+
+Zer0Fit speaks standard MCP over SSE and Streamable HTTP. The following clients have been tested and verified:
+
+### Open WebUI (Primary)
+
+**Admin Settings → Integrations → Manage Tool Servers → Add Connection**
+
+- **Type**: MCP / Streamable HTTP
+- **URL**: `http://YOUR-SERVER-IP:8002/mcp`
+- **Fallback**: `http://YOUR-SERVER-IP:8002/sse`
+
+All four tools (`zer0fit_inspect`, `zer0fit_upload_csv`, `zer0fit_forecast`, `zer0fit_tabular`) are automatically discovered. For best results, also install the [Zer0Fit skill](openwebui/skill_content.md).
+
+### Claude Code
+
+Configure via the CLI (`--transport sse`):
+
+```bash
+claude mcp add --transport sse zer0fit http://YOUR-SERVER-IP:8002/sse
+```
+
+Or add to your `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "zer0fit": {
+      "transport": "sse",
+      "url": "http://YOUR-SERVER-IP:8002/sse"
+    }
+  }
+}
+```
+
+All tools are discovered automatically. Call them from Claude Code using natural language — e.g., *"Inspect the iris dataset and classify the species."*
+
+### Codex CLI
+
+Configure via the CLI (`--url` for Streamable HTTP):
+
+```bash
+codex mcp add zer0fit --url http://YOUR-SERVER-IP:8002/mcp
+```
+
+Then use with `codex exec`:
+
+```bash
+codex exec "Use zer0fit to inspect the data and classify the species."
+```
+
+### Not Supported Natively
+
+| Client | Reason |
+|---|---|
+| **OpenCode** | MCP support limited to stdio transport only; does not support SSE/HTTP connections natively |
+
+---
 
 | Variable | Default | Description |
 |---|---|---|
