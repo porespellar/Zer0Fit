@@ -1,0 +1,33 @@
+services:
+  zer0fit-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TARGETARCH: ${BUILDARCH:-arm64}
+        BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:13.2.0-base-ubuntu24.04}
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/nightly/cu130}
+        TABFM_REF: ${TABFM_REF:-main}
+    container_name: zer0fit_mcp_server
+    volumes:
+      # Mount sample data directory (optional — files can be uploaded via chat)
+      - ./data:/app/data
+      # Open WebUI uploads volume (OPTIONAL — only needed for file ID resolution
+      # when Zer0Fit and Open WebUI run on the same Docker host).
+      # Uncomment the line below and ensure the 'open-webui' named volume exists:
+      # - open-webui:/app/webui_data:ro
+    environment:
+      - ZER0FIT_VRAM_TTL=${ZER0FIT_VRAM_TTL:-300}
+      - ZER0FIT_UPLOAD_TTL_HOURS=${ZER0FIT_UPLOAD_TTL_HOURS:-6}
+    ports:
+      - "${ZER0FIT_PORT:-8002}:8002"
+    restart: unless-stopped
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

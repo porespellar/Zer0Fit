@@ -1,0 +1,65 @@
+# syntax=docker/dockerfile:1.6
+# Multi-arch build for x86_64 (CUDA 12.4) and ARM64 (CUDA 13.2 Blackwell).
+ARG BASE_IMAGE=nvidia/cuda:12.4.1-base-ubuntu24.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    ZER0FIT_VRAM_TTL=300
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev git curl build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# TabFM is not on PyPI — clone at a pinned tag and install (no deps so it
+# never clobbers the carefully selected torch wheel). We then manually install
+# TabFM's non-torch deps from its pyproject.toml.
+ARG TABFM_REF=main
+RUN git clone --depth 1 --branch ${TABFM_REF} https://github.com/google-research/tabfm.git /opt/tabfm && \
+    pip3 install --no-deps -e /opt/tabfm[pytorch] && \
+    pip3 install --no-cache-dir \
+        "jaxtyping<0.3" "typeguard<3" flit_core scipy chex einops \
+        optax orbax-checkpoint
+
+# Architecture routing matrix — the TORCH_INDEX build arg is passed by
+# docker-compose from the .env file (written by install.sh).
+# Falls back to architecture-based detection if TORCH_INDEX is not set.
+ARG TARGETARCH
+ARG TORCH_INDEX=""
+RUN if [ -n "$TORCH_INDEX" ]; then \
+        echo "Installing torch from $TORCH_INDEX ..." && \
+        if [ "$TARGETARCH" = "arm64" ]; then \
+            pip3 install --pre --no-cache-dir torch torchvision --index-url "$TORCH_INDEX" ; \
+        else \
+            pip3 install --no-cache-dir torch torchvision --index-url "$TORCH_INDEX" ; \
+        fi ; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        echo "Installing torch for x86_64 (CUDA 12.4)..." && \
+        pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124 ; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        echo "Installing torch for ARM64 (CUDA 13.0 nightly / Blackwell)..." && \
+        pip3 install --pre --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130 ; \
+    else \
+        echo "Fallback: CPU/default torch..." && \
+        pip3 install --no-cache-dir torch torchvision ; \
+    fi
+
+# Python-level deps (now torch is already present so pip won't upgrade it).
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY model_manager.py pipelines.py server.py ./
+COPY data/ ./data/
+RUN mkdir -p /app/data/uploads
+
+EXPOSE 8002
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8002/health || exit 1
+
+CMD ["python3", "server.py"]

@@ -1,0 +1,32 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+._*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Large data files (download these yourself)
+data/california_housing.csv
+data/sample_ts.csv
+data/sample_tabular.csv
+
+# Docker
+.dockerignore
+
+# Uploads (auto-generated)
+data/uploads/
+
+# OS artifacts
+Thumbs.db
