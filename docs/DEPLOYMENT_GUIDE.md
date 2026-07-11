@@ -75,6 +75,9 @@ zerofit_project/
 ├── README.md              # Quick reference
 ├── ARCHITECTURE.md        # Technical design
 ├── DISCLAIMER.md          # No warranty, use-at-your-own-risk
+├── CLAUDE.md             # Claude Code project context
+├── AGENTS.md             # Codex CLI project instructions
+├── .claude/skills/        # Claude Code skill for Zer0Fit tools
 ├── openwebui/
 │   └── skill_content.md   # Open WebUI skill
 └── install.sh             # One-command installer

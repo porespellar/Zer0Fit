@@ -218,7 +218,7 @@ Or add to your `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "zer0fit": {
+    "zerofit": {
       "transport": "sse",
       "url": "http://YOUR-SERVER-IP:8002/sse"
     }
@@ -227,6 +227,8 @@ Or add to your `~/.claude/settings.json`:
 ```
 
 All tools are discovered automatically. Call them from Claude Code using natural language — e.g., *"Inspect the iris dataset and classify the species."*
+
+**Project context:** The repo includes a [`CLAUDE.md`](CLAUDE.md) file (auto-loaded by Claude Code) with architecture, conventions, and common commands. A Claude Code skill at [`.claude/skills/zerofit-workflow.md`](.claude/skills/zerofit-workflow.md) teaches Claude how to use the four MCP tools correctly.
 
 ### Codex CLI
 
@@ -241,6 +243,8 @@ Then use with `codex exec`:
 ```bash
 codex exec "Use zer0fit to inspect the data and classify the species."
 ```
+
+**Project context:** The repo includes an [`AGENTS.md`](AGENTS.md) file (auto-loaded by Codex CLI) with architecture, conventions, common commands, and Zer0Fit MCP tool usage instructions.
 
 ### Not Supported Natively
 
@@ -319,8 +323,13 @@ Zer0Fit/
 ├── README.md                 # This file
 ├── ARCHITECTURE.md           # Technical design doc
 ├── DISCLAIMER.md            # No warranty, use-at-your-own-risk notice
+├── CLAUDE.md                # Claude Code project context (auto-loaded)
+├── AGENTS.md                # Codex CLI project instructions (auto-loaded)
 ├── LICENSE                   # Apache 2.0
 ├── ATTRIBUTION.md            # Third-party model attributions
+├── .claude/
+│   └── skills/
+│       └── zerofit-workflow.md  # Claude Code skill for Zer0Fit MCP tools
 ├── docs/
 │   └── DEPLOYMENT_GUIDE.md   # Full guide for non-ML experts
 ├── openwebui/
