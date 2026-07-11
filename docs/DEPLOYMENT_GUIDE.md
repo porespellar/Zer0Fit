@@ -51,12 +51,13 @@ For files not attached in chat, the LLM calls `zer0fit_upload_csv` with the file
 
 ## Part 1: Deploying the Zer0Fit Server
 
-### Step 1: Copy the Project Files
+### Step 1: Clone the Repository
 
-Copy the `zerofit_project/` directory to your GPU server:
+Clone the repo onto your GPU server:
 
 ```bash
-rsync -avz zerofit_project/ your-server:~/zerofit_project/
+git clone https://github.com/porespellar/Zer0Fit.git ~/zerofit_project
+cd ~/zerofit_project
 ```
 
 The project structure:
@@ -99,6 +100,39 @@ curl http://localhost:8002/health
 ```bash
 scp iris.csv your-server:~/zerofit_project/data/
 ```
+
+---
+
+## How to Update Zer0Fit
+
+When a new version of Zer0Fit is released, update your server with:
+
+```bash
+cd ~/zerofit_project
+
+# 1. Pull the latest code from GitHub
+git pull origin main
+
+# 2. Stop the running container
+docker compose --profile gpu down
+
+# 3. Rebuild and restart (detects your architecture automatically)
+docker compose --profile gpu up --build -d
+
+# 4. Verify the update
+curl http://localhost:8002/health
+```
+
+**If you have local changes** (e.g. configuration tweaks), stash them first:
+
+```bash
+git stash
+git pull origin main
+git stash pop
+# Then proceed with steps 2-4 above
+```
+
+After updating, the Open WebUI connection and skill remain configured — no reconfiguration needed.
 
 ---
 
