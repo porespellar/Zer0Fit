@@ -144,35 +144,52 @@ async def list_tools() -> Any:  # noqa: ANN201
                 "Inspect a data file to discover its column names, data types, "
                 "and row count. Use this BEFORE calling zer0fit_forecast or "
                 "zer0fit_tabular to find the correct target_column name. "
-                "Accepts the same file_path formats as the other tools "
-                "(Open WebUI file ID, upload path, or /app/data filename)."
+                "Provide EITHER file_path (for files already on the server) "
+                "or file_data (for files attached in the chat). When a file "
+                "is attached in the chat, pass its raw contents as file_data "
+                "plus the original filename as file_name."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the data file. Accepts: (a) an Open WebUI file attachment ID (e.g. 'c9677920-a59f-4c4f-...'), (b) a path returned by zer0fit_upload_csv, or (c) a filename in /app/data/. When a user attaches a file in the chat, use the file ID from the attachment as file_path.",
+                        "description": "Path to the data file. Use this when the file is already on the server (uploaded or in /app/data/). Not needed when passing file_data.",
+                    },
+                    "file_data": {
+                        "type": "string",
+                        "description": "Raw file contents as a string (e.g. CSV text). Use this when the file is attached in the chat — pass the content directly instead of a file_path.",
+                    },
+                    "file_name": {
+                        "type": "string",
+                        "description": "Original filename (e.g. 'iris.csv'). Optional, used for display. Only relevant when file_data is provided.",
                     },
                 },
-                "required": ["file_path"],
             },
         ),
         Tool(
             name="zer0fit_forecast",
             description=(
                 "Zero-shot time-series forecasting via Google TimesFM 2.5. "
-                "Pass a file path (CSV, XLS, XLSX, JSON, or JSONL), the target "
-                "numeric column to forecast, and the forecast horizon (number "
-                "of future points). Returns a JSON object with point forecasts "
-                "and quantile forecasts."
+                "Provide EITHER file_path (for files on the server) "
+                "or file_data (for files attached in the chat). "
+                "When a file is attached, pass its raw CSV contents as "
+                "file_data instead of the file_path."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the data file. Accepts: (a) an Open WebUI file attachment ID (e.g. 'c9677920-a59f-4c4f-...'), (b) a path returned by zer0fit_upload_csv, or (c) a filename in /app/data/. When a user attaches a file in the chat, use the file ID from the attachment as file_path — the server will resolve it automatically.",
+                        "description": "Path to the data file. Use when the file is already on the server. Not needed when passing file_data.",
+                    },
+                    "file_data": {
+                        "type": "string",
+                        "description": "Raw file contents as a string (e.g. CSV text). Use when the file is attached in the chat instead of file_path.",
+                    },
+                    "file_name": {
+                        "type": "string",
+                        "description": "Original filename (e.g. 'airline_passengers.csv'). Optional, only relevant with file_data.",
                     },
                     "target_column": {
                         "type": "string",
@@ -188,24 +205,32 @@ async def list_tools() -> Any:  # noqa: ANN201
                         "description": "Optional datetime column for temporal downsampling.",
                     },
                 },
-                "required": ["file_path", "target_column", "horizon"],
+                "required": ["target_column", "horizon"],
             },
         ),
         Tool(
             name="zer0fit_tabular",
             description=(
                 "Zero-shot tabular classification or regression via Google "
-                "TabFM v1.0.0. Pass a file path (CSV, XLS, XLSX, JSON, or "
-                "JSONL), the target column, and task_type ('classification' "
-                "or 'regression'). Returns predictions and (for "
-                "classification) class probabilities."
+                "TabFM v1.0.0. Provide EITHER file_path (for files on the "
+                "server) or file_data (for files attached in the chat). "
+                "When a file is attached, pass its raw CSV contents as "
+                "file_data instead of file_path."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the data file. Accepts: (a) an Open WebUI file attachment ID (e.g. 'c9677920-a59f-4c4f-...'), (b) a path returned by zer0fit_upload_csv, or (c) a filename in /app/data/. When a user attaches a file in the chat, use the file ID from the attachment as file_path.",
+                        "description": "Path to the data file. Use when the file is already on the server. Not needed when passing file_data.",
+                    },
+                    "file_data": {
+                        "type": "string",
+                        "description": "Raw file contents as a string (e.g. CSV text). Use when the file is attached in the chat instead of file_path.",
+                    },
+                    "file_name": {
+                        "type": "string",
+                        "description": "Original filename (e.g. 'iris.csv'). Optional, only relevant with file_data.",
                     },
                     "target_column": {
                         "type": "string",
@@ -222,7 +247,7 @@ async def list_tools() -> Any:  # noqa: ANN201
                         "default": 1,
                     },
                 },
-                "required": ["file_path", "target_column", "task_type"],
+                "required": ["target_column", "task_type"],
             },
         ),
     ]
@@ -306,6 +331,39 @@ def _resolve_path(file_path: str) -> str:
         return data_candidate
 
     raise FileNotFoundError(f"Could not resolve file_path: {file_path}")
+
+
+def _resolve_to_path(
+    file_path: str | None = None,
+    file_data: str | None = None,
+    file_name: str = "data.csv",
+) -> str:
+    """Resolve a file path from either a file_path reference or inline data.
+
+    Two modes:
+      1. *file_path* — delegates to ``_resolve_path()`` for disk lookups.
+      2. *file_data* — writes the raw CSV/text content to a temp file
+         in ``UPLOAD_DIR`` and returns its path.  The temp file is named
+         with a UUID prefix so concurrent callers don't collide.  The
+         normal TTL cleanup handles eventual deletion.
+
+    Exactly one of *file_path* or *file_data* must be provided.
+    """
+    if file_data is not None:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        safe_name = os.path.basename(file_name) or "data.csv"
+        stored = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{safe_name}")
+        with open(stored, "w") as f:
+            f.write(file_data)
+        logger.info("Wrote inline file_data (%d chars) → %s", len(file_data), stored)
+        return stored
+    if file_path:
+        return _resolve_path(file_path)
+    raise ValueError(
+        "Either file_path or file_data must be provided. "
+        "When a file is attached in the chat, pass its contents as "
+        "file_data (the raw CSV text) instead of file_path."
+    )
 
 
 @app_server.call_tool()
@@ -432,7 +490,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "zer0fit_inspect":
-            file_path = _resolve_path(arguments["file_path"])
+            file_path = _resolve_to_path(
+                file_path=arguments.get("file_path"),
+                file_data=arguments.get("file_data"),
+                file_name=arguments.get("file_name", "data.csv"),
+            )
             # Read only the first 10,000 rows to prevent OOM on large files.
             # Column metadata (names, dtypes, sample values) is accurate
             # from a partial read; n_rows reflects the capped count.
@@ -462,7 +524,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "zer0fit_forecast":
-            file_path = _resolve_path(arguments["file_path"])
+            file_path = _resolve_to_path(
+                file_path=arguments.get("file_path"),
+                file_data=arguments.get("file_data"),
+                file_name=arguments.get("file_name", "data.csv"),
+            )
             target_column = arguments["target_column"]
             horizon = int(arguments["horizon"])
             if horizon <= 0 or horizon > 256:
@@ -487,7 +553,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "zer0fit_tabular":
-            file_path = _resolve_path(arguments["file_path"])
+            file_path = _resolve_to_path(
+                file_path=arguments.get("file_path"),
+                file_data=arguments.get("file_data"),
+                file_name=arguments.get("file_name", "data.csv"),
+            )
             target_column = arguments["target_column"]
             task_type = arguments["task_type"]
             # How many chunks to predict (default: 1).  Set to 0 or -1 for all.
