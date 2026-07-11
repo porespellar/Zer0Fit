@@ -14,6 +14,7 @@ application, strictly bound to 0.0.0.0:8002.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -201,7 +202,7 @@ async def list_tools() -> Any:  # noqa: ANN201
                     },
                     "max_chunks": {
                         "type": "integer",
-                        "description": "Max number of 1,000-row chunks to process (default 1, set to 0 for all).",
+                        "description": "Max number of 1,000-row chunks to process (default 1, max 10, set to 0 for maximum).",
                         "default": 1,
                     },
                 },
@@ -244,6 +245,8 @@ def _resolve_path(file_path: str) -> str:
         raise FileNotFoundError(f"File not found: {file_path}")
 
     basename = os.path.basename(file_path)
+    if not basename:
+        raise FileNotFoundError(f"Invalid file path: {file_path!r}")
 
     # Open WebUI uploads: files are stored as {file_id}_{original_filename}
     # The LLM often passes just the file_id (e.g. "c9677920-...") which is the
@@ -306,8 +309,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             file_id = uuid.uuid4().hex
             stored_name = f"{file_id}_{safe_name}"
 
-            # Clean up old uploads before writing the new one
-            _cleanup_uploads()
+            # Clean up old uploads before writing the new one (offloaded to
+            # avoid blocking the async event loop with filesystem I/O).
+            await asyncio.to_thread(_cleanup_uploads)
             os.makedirs(UPLOAD_DIR, exist_ok=True)
 
             # Decode base64 and validate
@@ -398,8 +402,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             file_path = _resolve_path(arguments["file_path"])
             target_column = arguments["target_column"]
             horizon = int(arguments["horizon"])
-            if horizon <= 0:
-                raise ValueError("horizon must be a positive integer (got %d)" % horizon)
+            if horizon <= 0 or horizon > 256:
+                raise ValueError("horizon must be an integer between 1 and 256 (got %d)" % horizon)
             datetime_column = arguments.get("datetime_column")
 
             inputs = pipelines.make_timesfm_forecast_inputs(
@@ -423,7 +427,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             target_column = arguments["target_column"]
             task_type = arguments["task_type"]
             # How many chunks to predict (default: 1).  Set to 0 or -1 for all.
+            # Cap at 10 to prevent OOM and massive JSON responses on large files.
+            MAX_CHUNKS_LIMIT = 10
             max_chunks = int(arguments.get("max_chunks", 1))
+            if max_chunks <= 0:
+                max_chunks = MAX_CHUNKS_LIMIT
+            else:
+                max_chunks = min(max_chunks, MAX_CHUNKS_LIMIT)
 
             estimator = await _mgr.get_tabfm_estimator(task_type)
 
