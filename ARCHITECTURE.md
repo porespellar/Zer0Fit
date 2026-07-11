@@ -87,6 +87,24 @@ A background `asyncio.Task` (`_sweeper_loop`) runs every 5 seconds. If the hot m
 
 `get_model()` checks the currently hot model type. If the request is for the *other* foundation type, the current model is evicted (state → `MUTUAL_EXCLUSION_EVICTION`) before the new one is loaded. This guarantees only one foundation model occupies VRAM at any time.
 
+All model loading (`_load_timesfm_locked`, `_load_tabfm_locked`) is offloaded to a background thread via `asyncio.to_thread()`, so the Starlette event loop stays responsive during the (potentially minutes-long) PyTorch model download and compilation. The `asyncio.Lock` is released during the thread offload and re-acquired when the model is ready to be stored in `_hot`.
+
+TabFM task-type state (`tabfm_task_type` on the `_HotModel` dataclass) is always accessed under the lock to prevent race conditions with the background TTL sweeper.
+
+### Inference limits
+
+The server enforces several hardcoded limits to protect the GPU and keep responses manageable:
+
+| Limit | Value | Enforced in |
+|---|---|---|
+| Forecast horizon | 1–256 steps | `server.py` (matches TimesFM `max_horizon`) |
+| Tabular chunks per request | 10 (10,000 rows) | `server.py` `MAX_CHUNKS_LIMIT` |
+| TabFM chunk size | 1,000 rows | `pipelines.py` `TABFM_CHUNK_SIZE` |
+| TabFM in-context size | 512 rows | `pipelines.py` `TABFM_IN_CONTEXT_SIZE` |
+| TimesFM context window | 1,024 tokens | `model_manager.py` `ForecastConfig.max_context` |
+
+See [README.md → Limits & Configurability](README.md#limits--configurability) for how to adjust these.
+
 ---
 
 ## 3. Data Pipeline Topologies

@@ -292,11 +292,15 @@ The LLM summarizes: *"The upward trend continues with a clear seasonal pattern �
 
 **Best for:** Data with a time dimension where you want to predict the future.
 
+**Limit:** `horizon` must be between 1 and 256 (matching TimesFM's compiled `max_horizon`). See [Limits & Configurability](../README.md#limits--configurability) to increase this.
+
 **Tip:** If your data has a datetime column, pass it as `datetime_column` — it helps the model understand temporal spacing (e.g., gaps, irregular intervals).
 
 ### `zer0fit_tabular`
 
 **Best for:** Any row-based prediction — classifying categories or predicting continuous numbers.
+
+**Limit:** `max_chunks` is capped at 10 (10,000 rows max per request) to prevent GPU OOM and oversized responses. Set `max_chunks=0` for the maximum. See [Limits & Configurability](../README.md#limits--configurability) to increase this.
 
 **Two modes:**
 - `task_type: "classification"` → predicts labels, returns per-class metrics
@@ -372,6 +376,8 @@ Not supported natively — OpenCode's MCP support is limited to stdio transport 
 | Poor accuracy | Noisy data or weak target-feature relationship | Try a different target or add more columns |
 | Prediction takes long | First run downloads model weights | Wait ~60s for model load; subsequent calls are faster |
 | Not enough rows | CSV too small for train/test split | Minimum ~10 rows, recommended 100+ |
+| "horizon must be an integer between 1 and 256" | Requested forecast beyond TimesFM's compiled limit | Use a smaller horizon, or increase `max_horizon` in both `server.py` and `model_manager.py` |
+| "max_chunks capped" / large request fails | `max_chunks` exceeds the 10-chunk limit | Reduce to 10 or fewer, or increase `MAX_CHUNKS_LIMIT` in `server.py` |
 
 ### VRAM Management
 - Models auto-unload after 5 minutes of inactivity (`ZER0FIT_VRAM_TTL`)

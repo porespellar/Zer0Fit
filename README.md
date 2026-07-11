@@ -155,7 +155,7 @@ Zero-shot time-series forecasting via Google TimesFM 2.5.
 |---|---|---|---|
 | `file_path` | string | ✅ | File ID, upload path, or /app/data filename |
 | `target_column` | string | ✅ | Numeric column to forecast |
-| `horizon` | int | ✅ | Number of future steps to predict |
+| `horizon` | int | ✅ | Number of future steps to predict (**1–256**) |
 | `datetime_column` | string | — | Optional datetime column for temporal spacing |
 
 **Returns:** Point forecasts, quantile forecasts (confidence intervals), and series length.
@@ -169,7 +169,7 @@ Zero-shot tabular classification/regression via Google TabFM v1.0.0.
 | `file_path` | string | ✅ | File ID, upload path, or /app/data filename |
 | `target_column` | string | ✅ | Column to predict |
 | `task_type` | enum | ✅ | `classification` or `regression` |
-| `max_chunks` | int | — | Max 1,000-row chunks to process (default 1, 0 = all) |
+| `max_chunks` | int | — | Max 1,000-row chunks to process (default 1, **max 10**, 0 = max) |
 
 **Returns:** Predictions, ground truth, plus a `metrics` block:
 
@@ -253,6 +253,50 @@ codex exec "Use zer0fit to inspect the data and classify the species."
 | `ZER0FIT_UPLOAD_TTL_HOURS` | `6` | Hours before auto-deleting uploaded files |
 | `ZER0FIT_LOG_LEVEL` | `INFO` | Python logging level |
 | `ZER0FIT_UPLOAD_DIR` | `/app/data/uploads` | Directory for uploaded files |
+
+---
+
+## Limits & Configurability
+
+Zer0Fit enforces several limits to protect the GPU server from OOM crashes, runaway predictions, and oversized JSON responses. These are hardcoded constants in `server.py` that you can adjust for your hardware.
+
+| Limit | Default | Location | Why It Exists | How to Change |
+|---|---|---|---|---|
+| **Forecast horizon** | 1–256 | `server.py` `zer0fit_forecast` handler | TimesFM is compiled with `max_horizon=256`; larger values cause inference errors | Edit the validation check, also update `max_horizon` in `model_manager.py:_load_timesfm_locked()` |
+| **Max chunks (tabular)** | 10 | `server.py` `MAX_CHUNKS_LIMIT` | Each chunk = 1,000 rows. Unbounded chunks cause GPU OOM and massive JSON responses that crash the MCP connection | Change `MAX_CHUNKS_LIMIT` constant in `server.py` |
+| **Chunk size** | 1,000 rows | `pipelines.py` `TABFM_CHUNK_SIZE` | Controls how many rows fit in a single GPU forward pass | Edit the constant; larger = more context but more VRAM |
+| **In-context size** | 512 rows | `pipelines.py` `TABFM_IN_CONTEXT_SIZE` | Rows from each chunk used as "examples" for zero-shot learning | Edit the constant; larger = better accuracy but more VRAM |
+| **Context window** | 1,024 tokens | `model_manager.py` `max_context` in `ForecastConfig` | TimesFM input ceiling for the compiled model | Edit `max_context` in `_load_timesfm_locked()` |
+| **Upload TTL** | 6 hours | `ZER0FIT_UPLOAD_TTL_HOURS` env var | Auto-cleans uploaded files to prevent disk fill | Set the env var in `docker-compose.yml` |
+| **VRAM TTL** | 300 seconds | `ZER0FIT_VRAM_TTL` env var | Auto-unloads idle models to free GPU memory | Set the env var in `docker-compose.yml` |
+| **Allowed data paths** | `/app/data/`, `/app/webui_data/` | `server.py` `ALLOWED_ABS_DIRS` | Security — restricts which directories the server can read files from | Edit the tuple in `_resolve_path()` |
+| **Upload filename entropy** | 128-bit UUID | `server.py` `uuid.uuid4().hex` | Prevents predictable filenames and cross-user file discovery | Not recommended to change |
+
+### Increasing the Tabular Chunk Limit
+
+If you have a large GPU (e.g., 80GB H100) and need to process more than 10,000 rows per request:
+
+```python
+# In server.py, change:
+MAX_CHUNKS_LIMIT = 10    # → 20, 50, etc.
+```
+
+### Increasing the Forecast Horizon
+
+If you need forecasts beyond 256 steps, both the validation and the model config must be updated:
+
+```python
+# 1. In server.py, update the validation:
+if horizon <= 0 or horizon > 512:  # was 256
+
+# 2. In model_manager.py, update the ForecastConfig:
+tfm.compile(
+    timesfm.ForecastConfig(
+        max_horizon=512,  # was 256
+        ...
+    )
+)
+```
 
 ---
 
