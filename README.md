@@ -138,7 +138,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 | If your prompt says… | Tool called | Model | task_type |
 |---|---|---|---|
-| "forecast", "future", "predict next N months", "extrapolate" | `zer0fit_forecast` | TimesFM 2.5 | *(n/a)* |
+| "forecast", "future", "predict next N months", "extrapolate" | `zer0fit_forecast` | TimesFM 2.5 | `forecast` |
 | "classify", "categorize", "what species", "label" | `zer0fit_tabular` | TabFM v1.0.0 | `classification` |
 | "predict prices", "estimate", "regression", "continuous value" | `zer0fit_tabular` | TabFM v1.0.0 | `regression` |
 | *(file attached to chat)* | `zer0fit_inspect` → then appropriate tool | *(auto)* | *(auto)* |
