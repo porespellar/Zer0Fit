@@ -161,7 +161,7 @@ async def list_tools() -> Any:  # noqa: ANN201
                     },
                     "file_data": {
                         "type": "string",
-                        "description": "Raw file contents as a string (e.g. CSV text). Use this when the file is attached in the chat — pass the content directly instead of a file_path.",
+                        "description": "RAW FILE CONTENTS as a string (e.g. the CSV text with headers and data rows). When a file is attached in the chat, you can see its contents in the conversation — pass that text here. Do NOT pass the file ID or UUID — pass the actual data. Example: 'sepal_length,sepal_width,species\\n5.1,3.5,setosa\\n4.9,3.0,setosa'",
                     },
                     "file_name": {
                         "type": "string",
@@ -177,7 +177,8 @@ async def list_tools() -> Any:  # noqa: ANN201
                 "Provide EITHER file_path (for files on the server) "
                 "or file_data (for files attached in the chat). "
                 "When a file is attached, pass its raw CSV contents as "
-                "file_data instead of the file_path."
+                "file_data — the actual text you see in the conversation, "
+                "not the file ID."
             ),
             inputSchema={
                 "type": "object",
@@ -188,7 +189,7 @@ async def list_tools() -> Any:  # noqa: ANN201
                     },
                     "file_data": {
                         "type": "string",
-                        "description": "Raw file contents as a string (e.g. CSV text). Use when the file is attached in the chat instead of file_path.",
+                        "description": "RAW FILE CONTENTS as a string. Pass the actual CSV text from the conversation, NOT the file ID. Example: 'Month,Passengers\\n1949-01,112\\n1949-02,118'",
                     },
                     "file_name": {
                         "type": "string",
@@ -229,7 +230,7 @@ async def list_tools() -> Any:  # noqa: ANN201
                     },
                     "file_data": {
                         "type": "string",
-                        "description": "Raw file contents as a string (e.g. CSV text). Use when the file is attached in the chat instead of file_path.",
+                        "description": "RAW FILE CONTENTS as a string. Pass the actual CSV text from the conversation, NOT the file ID. Example: 'sepal_length,sepal_width,species\\n5.1,3.5,setosa\\n4.9,3.0,setosa'",
                     },
                     "file_name": {
                         "type": "string",
@@ -336,6 +337,23 @@ def _resolve_path(file_path: str) -> str:
     raise FileNotFoundError(f"Could not resolve file_path: {file_path}")
 
 
+def _looks_like_uuid(s: str) -> bool:
+    """Return True if *s* looks like a UUID (hex string or UUID format)."""
+    s = s.strip()
+    if len(s) == 36 and s.count("-") == 4:
+        parts = s.split("-")
+        return all(len(p) == l for p, l in zip(parts, (8, 4, 4, 4, 12)))
+    if len(s) == 32:
+        return all(c in "0123456789abcdefABCDEF" for c in s)
+    return False
+
+
+def _looks_like_json(s: str) -> bool:
+    """Return True if *s* looks like a JSON array of objects."""
+    s = s.strip()
+    return s.startswith("[") or s.startswith("{")
+
+
 def _resolve_to_path(
     file_path: str | None = None,
     file_data: str | None = None,
@@ -353,6 +371,25 @@ def _resolve_to_path(
     Exactly one of *file_path* or *file_data* must be provided.
     """
     if file_data is not None:
+        # Validate that file_data looks like actual file content, not a
+        # file ID / UUID.  Common mistakes: passing the attachment UUID
+        # (e.g. "6e630f46-718d-4742-8e89-e1dff22003b3") as file_data
+        # instead of the raw CSV text.
+        stripped = file_data.strip()
+        if _looks_like_uuid(stripped):
+            raise ValueError(
+                f"The file_data parameter received a UUID ({stripped[:36]}) "
+                f"instead of actual file content. When a file is attached in "
+                f"the chat, pass the RAW CSV TEXT (the column headers and data "
+                f"rows you see in the conversation) as file_data. Do NOT pass "
+                f"the file ID or UUID."
+            )
+        if "," not in stripped and "\t" not in stripped and not _looks_like_json(stripped):
+            raise ValueError(
+                f"file_data does not look like valid CSV, TSV, or JSON data "
+                f"(received {len(stripped)} chars, no commas/tabs found). "
+                f"Pass the raw file contents as a string, not a file path or ID."
+            )
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         safe_name = os.path.basename(file_name) or "data.csv"
         stored = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{safe_name}")
