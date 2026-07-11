@@ -19,6 +19,9 @@
 
 set -euo pipefail
 
+# ── Version ────────────────────────────────────────────────────────────────
+ZER0FIT_VERSION="1.0.1"
+
 # ── Colors ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -33,12 +36,12 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Banner ────────────────────────────────────────────────────────────────
-cat << 'BANNER'
-  ╔══════════════════════════════════════════════════════════╗
-  ║         Zer0Fit MCP — Zero-Shot Inference Server          ║
-  ║     TimesFM 2.5  +  TabFM v1.0.0  via  MCP / SSE          ║
-  ╚══════════════════════════════════════════════════════════╝
-BANNER
+echo ""
+echo -e "${BOLD}  ╔══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}  ║     Zer0Fit MCP v${ZER0FIT_VERSION} — Zero-Shot Inference Server       ║${NC}"
+echo -e "${BOLD}  ║     TimesFM 2.5  +  TabFM v1.0.0  via  MCP / SSE          ║${NC}"
+echo -e "${BOLD}  ╚══════════════════════════════════════════════════════════╝${NC}"
+echo ""
 
 # ── Pre-flight checks ─────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -253,6 +256,7 @@ ok "Data directory ready: $SCRIPT_DIR/data/"
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD} Ready to build and deploy:${NC}"
+echo -e "  • Zer0Fit MCP Server v${ZER0FIT_VERSION}"
 echo -e "  • CUDA base image: $BASE_IMAGE"
 echo -e "  • PyTorch (pre-built, $ARCH_LABEL)"
 echo -e "  • TimesFM 2.5 (200M params) — weights downloaded to cache after build"
@@ -421,7 +425,7 @@ echo ""
 
 # ── Final summary ─────────────────────────────────────────────────────────
 echo -e "${GREEN}${BOLD}  ══════════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}  Zer0Fit MCP server deployed successfully!${NC}"
+echo -e "${GREEN}${BOLD}  Zer0Fit MCP v${ZER0FIT_VERSION} server deployed successfully!${NC}"
 echo -e "${GREEN}${BOLD}  ══════════════════════════════════════════════${NC}"
 echo ""
 echo -e "${BOLD}  Server endpoints:${NC}"
