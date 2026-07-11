@@ -44,6 +44,16 @@ cd "$SCRIPT_DIR"
 
 info "Working directory: $SCRIPT_DIR"
 
+# Check OS — Zer0Fit requires Linux with NVIDIA CUDA (not macOS)
+OS_NAME="$(uname -s)"
+if [[ "$OS_NAME" == "Darwin" ]]; then
+    error "macOS is not supported. Zer0Fit requires NVIDIA CUDA (Linux/x86_64 or Linux/ARM64).\n  Deploy on an Ubuntu 24.04 server with an NVIDIA GPU."
+fi
+if [[ "$OS_NAME" != "Linux" ]]; then
+    error "Unsupported OS: $OS_NAME. Zer0Fit requires Linux with NVIDIA CUDA."
+fi
+ok "Operating system: $OS_NAME"
+
 # Check Docker
 if ! command -v docker &>/dev/null; then
     error "Docker is not installed. Please install Docker first:\n  https://docs.docker.com/engine/install/"
@@ -62,11 +72,19 @@ ok "Compose: $($COMPOSE_CMD version 2>/dev/null | head -1)"
 
 # Check NVIDIA Container Toolkit
 if ! command -v nvidia-ctk &>/dev/null && ! docker info 2>/dev/null | grep -q "nvidia"; then
-    warn "NVIDIA Container Toolkit not detected. GPU support may not work."
-    warn "Install it: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
-else
-    ok "NVIDIA Container Toolkit detected"
+    error "NVIDIA Container Toolkit not detected. Zer0Fit requires an NVIDIA GPU.\n  Install it: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 fi
+ok "NVIDIA Container Toolkit detected"
+
+# Verify a CUDA device is actually present
+if ! command -v nvidia-smi &>/dev/null; then
+    error "nvidia-smi not found. No NVIDIA GPU detected on this host.\n  Zer0Fit requires an NVIDIA GPU with at least 16GB VRAM."
+fi
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
+if [[ -z "$GPU_NAME" ]]; then
+    error "nvidia-smi did not return a GPU. No NVIDIA GPU detected.\n  Zer0Fit requires an NVIDIA GPU with at least 16GB VRAM."
+fi
+ok "GPU: $GPU_NAME"
 
 # ── Architecture detection ────────────────────────────────────────────────
 ARCH=$(uname -m)
@@ -94,18 +112,6 @@ case "$ARCH" in
         ;;
 esac
 ok "Target: $ARCH_LABEL"
-
-# ── GPU detection ─────────────────────────────────────────────────────────
-GPU_NAME=""
-if command -v nvidia-smi &>/dev/null; then
-    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
-    if [ -n "$GPU_NAME" ]; then
-        ok "GPU: $GPU_NAME"
-    fi
-fi
-if [ -z "$GPU_NAME" ]; then
-    warn "No NVIDIA GPU detected via nvidia-smi. The container will start but inference will fail."
-fi
 
 # ── Configuration prompts ─────────────────────────────────────────────────
 INTERACTIVE=true
