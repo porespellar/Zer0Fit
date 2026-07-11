@@ -40,10 +40,51 @@ For files not attached in chat, the LLM calls `zer0fit_upload_csv` with the file
 ## System Requirements
 
 ### The Zer0Fit Server (GPU Host)
-- **GPU**: NVIDIA GPU with at least 16GB VRAM (tested on DGX Spark GB10, RTX 3090, H100)
-- **OS**: Ubuntu 24.04 (ARM64 or x86_64)
-- **Docker**: 24.0+ with NVIDIA Container Toolkit
-- **Docker Compose**: v2+
+
+Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, PyTorch, or Python on the host — only the NVIDIA driver, Docker, and the NVIDIA Container Toolkit.
+
+#### Hardware
+
+| Requirement | Minimum | Notes |
+|---|---|---|
+| **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
+| **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
+| **Disk** | 20GB free | Docker image + model weights (~1.5GB each) |
+
+#### Software
+
+| Requirement | Version | Install Guide |
+|---|---|---|
+| **OS** | Ubuntu 24.04 (x86_64 or ARM64) | — |
+| **NVIDIA Driver** | 545+ (x86_64) / 570+ (ARM64) | [NVIDIA Driver Downloads](https://www.nvidia.com/Download/index.aspx) |
+| **Docker Engine** | 24.0+ | [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) |
+| **Docker Compose** | v2+ | Included with Docker Engine 24+ (`docker compose`) |
+| **NVIDIA Container Toolkit** | Latest | [Install NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+
+#### Verify Your Setup Before Installing
+
+Run these commands before running `./install.sh`. If any fail, install the missing prerequisite using the links above.
+
+```bash
+# 1. Verify NVIDIA driver is installed and GPU is visible
+nvidia-smi
+# Should show your GPU name, driver version, and CUDA version
+
+# 2. Verify Docker is installed
+docker --version
+# Should show Docker version 24.0 or higher
+
+# 3. Verify Docker Compose v2 is available
+docker compose version
+# Should show Docker Compose version v2.x
+
+# 4. Verify NVIDIA Container Toolkit
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu24.04 nvidia-smi
+# Should show your GPU inside the container — if this fails, the
+# NVIDIA Container Toolkit is not properly configured
+```
+
+> **Note:** The `install.sh` script will also check for all of these and exit with an error message if any are missing.
 
 ### The Client (Where Open WebUI Runs)
 - Open WebUI 0.5+ (for MCP SSE transport) or 0.10+ (for Streamable HTTP)

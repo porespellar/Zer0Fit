@@ -36,6 +36,55 @@ Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v
 
 ---
 
+## Prerequisites
+
+Before running `install.sh`, you need a Linux server with an NVIDIA GPU and Docker set up. The installer will check for these and exit with an error if any are missing.
+
+### Hardware
+
+| Requirement | Minimum | Notes |
+|---|---|---|
+| **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
+| **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
+| **Disk** | 20GB free | Docker image + model weights (~1.5GB each) |
+
+### Software
+
+| Requirement | Version | Install Guide |
+|---|---|---|
+| **OS** | Ubuntu 24.04 (x86_64 or ARM64) | — |
+| **NVIDIA Driver** | 545+ (x86_64) / 570+ (ARM64) | [NVIDIA Driver Downloads](https://www.nvidia.com/Download/index.aspx) |
+| **Docker Engine** | 24.0+ | [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) |
+| **Docker Compose** | v2+ | Included with Docker Engine 24+ (`docker compose`) |
+| **NVIDIA Container Toolkit** | Latest | [Install NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+
+### Verify Your Setup
+
+Run these commands before starting the install. If any fail, install the missing prerequisite using the links above.
+
+```bash
+# 1. Verify NVIDIA driver is installed and GPU is visible
+nvidia-smi
+# Should show your GPU name, driver version, and CUDA version
+
+# 2. Verify Docker is installed
+docker --version
+# Should show Docker version 24.0 or higher
+
+# 3. Verify Docker Compose v2 is available
+docker compose version
+# Should show Docker Compose version v2.x
+
+# 4. Verify NVIDIA Container Toolkit
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu24.04 nvidia-smi
+# Should show your GPU inside the container — if this fails, the
+# NVIDIA Container Toolkit is not properly configured
+```
+
+> **Note:** Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, PyTorch, or Python on the host — only the NVIDIA driver, Docker, and the NVIDIA Container Toolkit. The Docker image includes everything else.
+
+---
+
 ## Quick Start
 
 ### 1. Deploy on a GPU Server
