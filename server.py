@@ -693,11 +693,60 @@ async def handle_sse(request):
 
 
 async def health(request):
-    """Lightweight health endpoint used by Docker HEALTHCHECK."""
+    """Lightweight health endpoint used by Docker HEALTHCHECK and install.sh.
+
+    Reports server state, active model, and available endpoints.
+    """
+    state = _mgr.state.value
+    active = _mgr.active_model_type.value if _mgr.active_model_type else None
+    return JSONResponse({
+        "status": "healthy",
+        "state": state,
+        "active_model": active,
+        "endpoints": {
+            "mcp": "/mcp (Streamable HTTP — preferred for Open WebUI 0.10+)",
+            "sse": "/sse (SSE — legacy fallback)",
+            "health": "/health",
+            "preload": "/preload (POST — trigger model download + VRAM load)",
+        },
+        "version": "1.0.0",
+    })
+
+
+async def preload(request):
+    """Trigger model pre-loading into VRAM.
+
+    Called by install.sh after the Docker build to download and load
+    both models so the user doesn't experience a delay on first use.
+    Returns JSON with the load status and which models are now hot.
+    """
+    import json as _json
+    try:
+        body = _json.loads(await request.body()) if await request.body() else {}
+    except Exception:
+        body = {}
+
+    model = body.get("model", "all")  # "timesfm", "tabfm", or "all"
+    results = {}
+
+    if model in ("timesfm", "all"):
+        try:
+            await _mgr.get_model(ModelType.TIMESFM)
+            results["timesfm"] = "loaded"
+        except Exception as exc:
+            results["timesfm"] = f"error: {exc}"
+
+    if model in ("tabfm", "all"):
+        try:
+            await _mgr.get_tabfm_estimator("classification")
+            results["tabfm"] = "loaded"
+        except Exception as exc:
+            results["tabfm"] = f"error: {exc}"
+
     state = _mgr.state.value
     active = _mgr.active_model_type.value if _mgr.active_model_type else None
     return JSONResponse(
-        {"status": "healthy", "state": state, "active_model": active}
+        {"status": "ok", "models": results, "state": state, "active_model": active}
     )
 
 
@@ -713,6 +762,8 @@ def create_starlette_app() -> Starlette:
         Route("/mcp", endpoint=streamable_http_asgi_app, methods=["GET", "POST", "DELETE"]),
         # Health check
         Route("/health", endpoint=health),
+        # Model pre-loading (called by install.sh)
+        Route("/preload", endpoint=preload, methods=["POST"]),
     ]
     return Starlette(
         routes=routes,
