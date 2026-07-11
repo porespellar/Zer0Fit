@@ -10,15 +10,15 @@ This project makes use of the following third-party models and libraries, each w
 
 - **Source**: [https://github.com/google-research/timesfm](https://github.com/google-research/timesfm)
 - **License**: Apache License, Version 2.0
-- **Copyright**: 2024 Google LLC
+- **Copyright**: 2024–2026 Google LLC
 - **Citation**:
   > Das, A., et al. "A decoder-only foundation model for time-series forecasting."
-  > arXiv preprint arXiv:2310.10688, 2024.
+  > ICML 2024. https://openreview.net/forum?id=jn2iTJas6h
 
 ### TimesFM License Notice
 
 ```
-Copyright 2024 Google LLC
+Copyright 2024–2026 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,13 +40,16 @@ TimesFM is used as an unmodified dependency. Model weights are downloaded at run
 ## Google TabFM v1.0.0
 
 - **Source**: [https://github.com/google-research/tabfm](https://github.com/google-research/tabfm)
-- **License**: Apache License, Version 2.0
-- **Copyright**: 2024 Google LLC
+- **License**: TabFM Non-Commercial License v1.0 (model weights); Apache License, Version 2.0 (source code)
+- **Copyright**: 2026 Google LLC
+- **Citation**:
+  > Google Research. "TabFM: A Zero-Shot Foundation Model for Tabular Data." 2026.
+  > https://research.google/blog/introducing-tabfm-a-zero-shot-foundation-model-for-tabular-data/
 
 ### TabFM License Notice
 
 ```
-Copyright 2024 Google LLC
+Copyright 2026 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,7 +64,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-TabFM is used as an unmodified dependency cloned from the [google-research/tabfm](https://github.com/google-research/tabfm) repository at build time. Model weights are downloaded at runtime under the TabFM model card terms.
+TabFM is used as an unmodified dependency. Model weights are downloaded at runtime from Hugging Face Hub under the [TabFM Non-Commercial License v1.0](https://huggingface.co/google/tabfm-1.0.0-pytorch/blob/main/LICENSE). The source code is cloned from [google-research/tabfm](https://github.com/google-research/tabfm) under Apache 2.0.
+
+> **Note:** The TabFM Non-Commercial License restricts commercial use of the model weights. Ensure your use case complies with the license terms before deployment.
 
 ---
 

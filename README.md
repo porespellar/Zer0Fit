@@ -363,14 +363,14 @@ This project is licensed under the **Apache License, Version 2.0**. See [LICENSE
 ### Google TimesFM 2.5
 - **Source**: [google-research/timesfm](https://github.com/google-research/timesfm)
 - **License**: Apache License, Version 2.0
-- **Copyright**: 2024 Google LLC
-- **Citation**: *"A decoder-only foundation model for time-series forecasting"* — Das et al., 2024
+- **Copyright**: 2024–2026 Google LLC
+- **Citation**: *Das, A., et al. "A decoder-only foundation model for time-series forecasting." ICML 2024.* — [Paper](https://openreview.net/forum?id=jn2iTJas6h)
 
 ### Google TabFM v1.0.0
 - **Source**: [google-research/tabfm](https://github.com/google-research/tabfm)
-- **License**: Apache License, Version 2.0
-- **Copyright**: 2024 Google LLC
-- **Citation**: *"TabFM: A Foundation Model for Tabular Data"*
+- **License**: TabFM Non-Commercial License v1.0 (weights); Apache 2.0 (source code)
+- **Copyright**: 2026 Google LLC
+- **Citation**: *TabFM: A Zero-Shot Foundation Model for Tabular Data* — [Google Research Blog](https://research.google/blog/introducing-tabfm-a-zero-shot-foundation-model-for-tabular-data/)
 
 ### Sample Datasets
 - **Iris** — R.A. Fisher, 1936. Public domain benchmark dataset.
