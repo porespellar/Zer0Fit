@@ -17,11 +17,13 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# TabFM is not on PyPI — clone at a pinned tag and install (no deps so it
-# never clobbers the carefully selected torch wheel). We then manually install
-# TabFM's non-torch deps from its pyproject.toml.
-ARG TABFM_REF=main
-RUN git clone --depth 1 --branch ${TABFM_REF} https://github.com/google-research/tabfm.git /opt/tabfm && \
+# TabFM is not on PyPI — clone and checkout a pinned commit for reproducible
+# builds, then install (no deps so it never clobbers the carefully selected
+# torch wheel). We then manually install TabFM's non-torch deps.
+# To update: change TABFM_REF to a newer commit SHA after verifying compatibility.
+ARG TABFM_REF=d8678b6895f1428a468d4cc299c1ff4cf704e726
+RUN git clone https://github.com/google-research/tabfm.git /opt/tabfm && \
+    cd /opt/tabfm && git checkout ${TABFM_REF} && \
     pip3 install --no-deps -e /opt/tabfm[pytorch] && \
     pip3 install --no-cache-dir \
         "jaxtyping<0.3" "typeguard<3" flit_core scipy chex einops \
@@ -43,7 +45,7 @@ RUN if [ -n "$TORCH_INDEX" ]; then \
         echo "Installing torch for x86_64 (CUDA 12.4)..." && \
         pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124 ; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
-        echo "Installing torch for ARM64 (CUDA 13.0 nightly / Blackwell)..." && \
+        echo "Installing torch for ARM64 (CUDA 13.2 / cu130 wheels / Blackwell)..." && \
         pip3 install --pre --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130 ; \
     else \
         echo "Fallback: CPU/default torch..." && \

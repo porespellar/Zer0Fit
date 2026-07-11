@@ -58,13 +58,13 @@ For files not attached in chat, the LLM calls `zer0fit_upload_csv` with the file
 Clone the repo onto your GPU server:
 
 ```bash
-git clone https://github.com/porespellar/Zer0Fit.git ~/zerofit_project
-cd ~/zerofit_project
+git clone https://github.com/porespellar/Zer0Fit.git
+cd Zer0Fit
 ```
 
 The project structure:
 ```
-zerofit_project/
+Zer0Fit/
 ├── data/                  # Put CSV files here (optional — use chat attach)
 ├── Dockerfile             # Multi-architecture Docker build
 ├── docker-compose.yml     # Docker Compose configuration
@@ -103,7 +103,7 @@ curl http://localhost:8002/health
 ### Step 4: (Optional) Pre-Load Sample Data
 
 ```bash
-scp iris.csv your-server:~/zerofit_project/data/
+scp iris.csv your-server:Zer0Fit/data/
 ```
 
 ---
@@ -113,7 +113,7 @@ scp iris.csv your-server:~/zerofit_project/data/
 When a new version of Zer0Fit is released, update your server with:
 
 ```bash
-cd ~/zerofit_project
+cd Zer0Fit
 
 # 1. Pull the latest code from GitHub
 git pull origin main

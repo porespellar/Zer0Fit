@@ -11,7 +11,7 @@ server.py          → MCP server (Starlette, port 8002, SSE + Streamable HTTP)
 model_manager.py   → VRAM governor (asyncio.Lock, TTL sweeper, mutual exclusion)
 pipelines.py       → Data pipelines (downsampling for TimesFM, chunking for TabFM)
 install.sh         → One-command installer (architecture-aware: ARM64 + x86_64)
-Dockerfile         → Multi-arch Docker build (CUDA 12.4 x86_64, CUDA 13.0 ARM64)
+Dockerfile         → Multi-arch Docker build (CUDA 12.4 x86_64, CUDA 13.2 ARM64 / cu130 wheels)
 docker-compose.yml  → GPU profile, reads from .env
 ```
 

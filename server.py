@@ -55,11 +55,19 @@ def _cleanup_uploads() -> int:
     """
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     cutoff = time.time() - (UPLOAD_TTL_HOURS * 3600)
+    upload_real = os.path.realpath(UPLOAD_DIR)
     deleted = 0
     for path in glob.glob(os.path.join(UPLOAD_DIR, "*")):
         try:
-            if os.path.getmtime(path) < cutoff:
-                os.remove(path)
+            # Resolve symlinks and verify the real path stays within
+            # UPLOAD_DIR — prevents symlink-following attacks that could
+            # delete arbitrary files outside the upload directory.
+            real = os.path.realpath(path)
+            if not real.startswith(upload_real + os.sep):
+                logger.warning("Skipping cleanup of symlink escape: %s -> %s", path, real)
+                continue
+            if os.path.getmtime(real) < cutoff:
+                os.remove(real)
                 deleted += 1
         except OSError:
             pass
@@ -79,7 +87,7 @@ def _json_safe(v):
         return float(v)
     if isinstance(v, (np.bool_,)):
         return bool(v)
-    if isinstance(v, (pd.Timestamp, pd.DatetimeTZDtype)):
+    if isinstance(v, pd.Timestamp):
         return str(v)
     if pd.isna(v):
         return None
@@ -409,7 +417,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
 
         elif name == "zer0fit_inspect":
             file_path = _resolve_path(arguments["file_path"])
-            df = pipelines._read_tabular_file(file_path)
+            # Read only the first 10,000 rows to prevent OOM on large files.
+            # Column metadata (names, dtypes, sample values) is accurate
+            # from a partial read; n_rows reflects the capped count.
+            df_ext = os.path.splitext(file_path)[1].lower()
+            if df_ext in (".csv", ".xls", ".xlsx"):
+                df = pipelines._read_tabular_file(file_path, nrows=10000)
+            else:
+                df = pipelines._read_tabular_file(file_path)
             result = {
                 "file_path": file_path,
                 "filename": os.path.basename(file_path),
@@ -543,7 +558,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                         "precision": precision,
                         "recall": recall,
                         "f1_score": f1,
-                        "support": int(np.sum(truth_arr == cls)),
+                        "support": int(np.sum(truth_str == cls)),
                     })
 
                 # Confusion matrix

@@ -89,7 +89,7 @@ A background `asyncio.Task` (`_sweeper_loop`) runs every 5 seconds. If the hot m
 
 `get_model()` checks the currently hot model type. If the request is for the *other* foundation type, the current model is evicted (state → `MUTUAL_EXCLUSION_EVICTION`) before the new one is loaded. This guarantees only one foundation model occupies VRAM at any time.
 
-All model loading (`_load_timesfm_locked`, `_load_tabfm_locked`) is offloaded to a background thread via `asyncio.to_thread()`, so the Starlette event loop stays responsive during the (potentially minutes-long) PyTorch model download and compilation. The `asyncio.Lock` is released during the thread offload and re-acquired when the model is ready to be stored in `_hot`.
+All model loading (`_load_timesfm_locked`, `_load_tabfm_locked`) is offloaded to a background thread via `asyncio.to_thread()`, so the Starlette event loop stays responsive during the (potentially minutes-long) PyTorch model download and compilation. The `asyncio.Lock` is **held** during the `asyncio.to_thread()` call — while the thread runs the blocking model load, other coroutines can run on the event loop, but any coroutine that tries to acquire the same lock will wait. This ensures no concurrent model loads or state mutations.
 
 TabFM task-type state (`tabfm_task_type` on the `_HotModel` dataclass) is always accessed under the lock to prevent race conditions with the background TTL sweeper.
 
@@ -172,7 +172,7 @@ For very large files, the full DataFrame is loaded into host RAM before chunking
 
 ## 4. Hardware Matrix
 
-| Component | x86_64 (CUDA 12.4) | ARM64 (CUDA 13.0 nightly) |
+| Component | x86_64 (CUDA 12.4) | ARM64 (CUDA 13.2 / cu130 wheels) |
 |---|---|---|
 | Base image | `nvidia/cuda:12.4.1-base-ubuntu24.04` | `nvidia/cuda:13.2.0-base-ubuntu24.04` |
 | Torch index | `download.pytorch.org/whl/cu124` | `download.pytorch.org/whl/nightly/cu130` |
