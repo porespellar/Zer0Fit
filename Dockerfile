@@ -26,8 +26,12 @@ RUN git clone https://github.com/google-research/tabfm.git /opt/tabfm && \
     cd /opt/tabfm && git checkout ${TABFM_REF} && \
     pip3 install --no-deps -e /opt/tabfm[pytorch] && \
     pip3 install --no-cache-dir \
-        "jaxtyping<0.3" "typeguard<3" flit_core scipy chex einops \
-        optax orbax-checkpoint
+        "jaxtyping<0.3" "typeguard<3" flit_core scipy einops
+# Remove JAX packages — they're pulled in by TabFM's transitive deps
+# (chex, optax, orbax-checkpoint) but we use the PyTorch backend, not
+# JAX.  JAX v0.10+ requires numpy 2.0+ (StringDType), conflicting with
+# our numpy <2.0.0 pin for TimesFM compatibility.
+RUN pip3 uninstall -y jax jaxlib 2>/dev/null || true
 
 # Architecture routing matrix — the TORCH_INDEX build arg is passed by
 # docker-compose from the .env file (written by install.sh).
