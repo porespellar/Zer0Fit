@@ -80,7 +80,6 @@ zerofit_project/
 ### Step 2: Build and Launch
 
 ```bash
-cd ~/zerofit_project
 ./install.sh
 ```
 
