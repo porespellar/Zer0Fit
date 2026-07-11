@@ -350,6 +350,9 @@ Zer0Fit/
 | **[Deployment & Usage Guide](docs/DEPLOYMENT_GUIDE.md)** | Everyone | Full deployment + Open WebUI setup + examples + troubleshooting |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | Developers | VRAM state machine, pipeline topology, hardware matrix |
 | **[Open WebUI Skill](openwebui/)** | Open WebUI admins | Skill for guiding LLM tool selection |
+| **[CLAUDE.md](CLAUDE.md)** | Claude Code users | Project context — architecture, conventions, commands (auto-loaded) |
+| **[Claude Code Skill](.claude/skills/zerofit-workflow.md)** | Claude Code users | Skill for using Zer0Fit's MCP tools — workflow, limits, interpretation |
+| **[AGENTS.md](AGENTS.md)** | Codex CLI users | Project instructions — architecture, commands, MCP tool usage (auto-loaded) |
 
 ---
 
