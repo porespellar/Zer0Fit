@@ -55,6 +55,8 @@ class _HotModel:
     # metadata for TabFM (sklearn estimators)
     clf: Any = None
     reg: Any = None
+    # TabFM task type this model was loaded for ("classification" or "regression").
+    tabfm_task_type: str = ""
 
 
 def _default_ttl() -> int:
@@ -85,9 +87,17 @@ class ModelManager:
     def active_model_type(self) -> Optional[ModelType]:
         return self._hot.model_type if self._hot else None
 
-    async def get_model(self, model_type: ModelType) -> Any:
+    async def get_model(
+        self,
+        model_type: ModelType,
+        task_type: str = "classification",
+    ) -> Any:
         """Return the hot model instance for *model_type*, loading or
-        evicting as necessary.  Resets the TTL timer on every call."""
+        evicting as necessary.  Resets the TTL timer on every call.
+
+        ``task_type`` is passed through to the TabFM loader so the correct
+        model weights are loaded; it is ignored for TimesFM.
+        """
         async with self._lock:
             if self._hot is not None and self._hot.model_type == model_type:
                 self._hot.last_used_at = time.monotonic()
@@ -100,7 +110,7 @@ class ModelManager:
             if model_type is ModelType.TIMESFM:
                 instance = await self._load_timesfm_locked()
             else:
-                instance = await self._load_tabfm_locked()
+                instance = await self._load_tabfm_locked(task_type=task_type)
 
             self._hot = _HotModel(
                 model_type=model_type,
@@ -119,23 +129,34 @@ class ModelManager:
         model entry.  The base model is loaded with the correct
         model_type so weights match the task.
         """
-        # We need to ensure the base model matches the task_type.
-        # If a model is hot but was loaded for the wrong task, evict and
-        # reload with the correct model_type.
-        if self._hot is not None and self._hot.model_type == ModelType.TABFM:
-            if not hasattr(self._hot, "_tabfm_task_type") or self._hot._tabfm_task_type != task_type:
-                async with self._lock:
+        # Check if we need to evict or load, all under the lock to prevent
+        # race conditions with the background sweeper and concurrent callers.
+        need_load = False
+        async with self._lock:
+            if self._hot is not None and self._hot.model_type == ModelType.TABFM:
+                if self._hot.tabfm_task_type != task_type:
+                    # Wrong task type — evict and reload with correct weights.
                     await self._evict_locked(reason="tabfm_task_type_mismatch")
+                    need_load = True
+                else:
+                    # Already hot with the right task — touch the TTL.
+                    self._hot.last_used_at = time.monotonic()
+            else:
+                need_load = True
 
-        # Set the pending task type so _load_tabfm_loaded loads the right weights.
-        self._pending_tabfm_task = task_type
-        model = await self.get_model(ModelType.TABFM)
+        # Load outside the lock — get_model acquires the lock internally and
+        # _load_tabfm_locked uses asyncio.to_thread which must not run under lock.
+        if need_load:
+            model = await self.get_model(ModelType.TABFM, task_type=task_type)
+        else:
+            model = self._hot.instance  # type: ignore[union-attr]
+
+        # Build and cache the estimator under the lock.
         async with self._lock:
             if self._hot is None or self._hot.model_type != ModelType.TABFM:
                 raise RuntimeError("TabFM unexpectedly evicted mid-call")
             self._hot.last_used_at = time.monotonic()
-            # Remember which task type this model was loaded for.
-            self._hot._tabfm_task_type = task_type
+            self._hot.tabfm_task_type = task_type
             if task_type == "classification":
                 if self._hot.clf is None:
                     from tabfm import TabFMClassifier
@@ -178,34 +199,40 @@ class ModelManager:
 
     async def _load_timesfm_locked(self) -> Any:
         logger.info("Loading TimesFM 2.5 (200M, PyTorch backend)...")
-        import timesfm
 
-        tfm = timesfm.TimesFM_2p5_200M_torch.from_pretrained(
-            "google/timesfm-2.5-200m-pytorch"
-        )
-        # Compile a default forecast config on first load.
-        tfm.compile(
-            timesfm.ForecastConfig(
-                max_context=1024,
-                max_horizon=256,
-                normalize_inputs=True,
-                use_continuous_quantile_head=True,
-                force_flip_invariance=True,
-                infer_is_positive=True,
-                fix_quantile_crossing=True,
+        def _load():
+            import timesfm
+            tfm = timesfm.TimesFM_2p5_200M_torch.from_pretrained(
+                "google/timesfm-2.5-200m-pytorch"
             )
-        )
+            tfm.compile(
+                timesfm.ForecastConfig(
+                    max_context=1024,
+                    max_horizon=256,
+                    normalize_inputs=True,
+                    use_continuous_quantile_head=True,
+                    force_flip_invariance=True,
+                    infer_is_positive=True,
+                    fix_quantile_crossing=True,
+                )
+            )
+            return tfm
+
+        # Offload to a thread so the async event loop is not blocked for
+        # the (potentially minutes-long) PyTorch model load + compile.
+        tfm = await asyncio.to_thread(_load)
         logger.info("TimesFM loaded and compiled successfully.")
         return tfm
 
-    async def _load_tabfm_locked(self) -> Any:
-        # Determine which task type to load for from the pending request.
-        # Default to classification; get_tabfm_estimator sets this before calling.
-        task_type = getattr(self, "_pending_tabfm_task", "classification")
+    async def _load_tabfm_locked(self, task_type: str = "classification") -> Any:
         logger.info("Loading TabFM v1.0.0 (PyTorch backend, task=%s)...", task_type)
-        from tabfm import tabfm_v1_0_0_pytorch
 
-        model = tabfm_v1_0_0_pytorch.load(model_type=task_type)
+        def _load():
+            from tabfm import tabfm_v1_0_0_pytorch
+            return tabfm_v1_0_0_pytorch.load(model_type=task_type)
+
+        # Offload to a thread so the async event loop is not blocked.
+        model = await asyncio.to_thread(_load)
         logger.info("TabFM base model loaded successfully (task=%s).", task_type)
         return model
 

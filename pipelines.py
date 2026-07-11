@@ -186,6 +186,10 @@ def chunk_tabular(
     # Shuffle to ensure class diversity in the context window.
     df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
 
+    # Drop rows where the target column is missing — feeding NaNs into
+    # TabFM's fit/predict would crash or produce meaningless results.
+    df = df.dropna(subset=[target_column]).reset_index(drop=True)
+
     chunks: List[Tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]] = []
     n = len(df)
     for start in range(0, n, chunk_size):

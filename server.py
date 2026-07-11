@@ -222,10 +222,25 @@ def _resolve_path(file_path: str) -> str:
       4. /app/data/ (for pre-placed files)
     The caller must provide the exact filename or full path — no globbing.
     """
-    # Absolute path — only if it exists and is a file (not directory)
+    # Absolute path — only if it exists, is a file, and is within an
+    # approved data directory.  This prevents path-traversal attacks that
+    # could read arbitrary files (e.g. /etc/passwd, /app/.env) via
+    # zer0fit_inspect.
+    ALLOWED_ABS_DIRS = (
+        "/app/data/",
+        "/app/webui_data/",
+    )
     if os.path.isabs(file_path):
-        if os.path.isfile(file_path):
-            return file_path
+        real = os.path.realpath(file_path)
+        if not any(
+            real == d.rstrip("/") or real.startswith(d) for d in ALLOWED_ABS_DIRS
+        ):
+            raise ValueError(
+                "Access to paths outside of approved data directories "
+                f"({', '.join(ALLOWED_ABS_DIRS)}) is prohibited."
+            )
+        if os.path.isfile(real):
+            return real
         raise FileNotFoundError(f"File not found: {file_path}")
 
     basename = os.path.basename(file_path)
@@ -288,7 +303,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             # guess or browse other users' uploads. The original name is
             # preserved in the response for the LLM's reference, but the
             # actual file on disk uses the UUID.
-            file_id = uuid.uuid4().hex[:12]
+            file_id = uuid.uuid4().hex
             stored_name = f"{file_id}_{safe_name}"
 
             # Clean up old uploads before writing the new one
