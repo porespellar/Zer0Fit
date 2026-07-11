@@ -45,7 +45,10 @@ logging.basicConfig(
 logger = logging.getLogger("zer0fit.server")
 
 # Directory for uploaded files (auto-cleaned on TTL).
-UPLOAD_DIR = os.environ.get("ZER0FIT_UPLOAD_DIR", "/app/data/uploads")
+# NOTE: this should NOT be under /app/data/ because that directory
+# is mounted from the host (./data:/app/data) and the container user
+# may not have write permission to the host-mounted directory.
+UPLOAD_DIR = os.environ.get("ZER0FIT_UPLOAD_DIR", "/app/uploads")
 UPLOAD_TTL_HOURS = int(os.environ.get("ZER0FIT_UPLOAD_TTL_HOURS", "6"))
 
 

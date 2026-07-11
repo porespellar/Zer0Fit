@@ -62,8 +62,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY model_manager.py pipelines.py server.py ./
 COPY data/ ./data/
-RUN mkdir -p /app/data/uploads && \
-    mkdir -p /app/.cache/huggingface && \
+RUN mkdir -p /app/data/uploads /app/uploads /app/.cache/huggingface && \
     useradd -m -s /bin/bash zer0fit && \
     chown -R zer0fit:zer0fit /app
 
