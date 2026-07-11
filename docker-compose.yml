@@ -7,7 +7,7 @@ services:
         TARGETARCH: ${BUILDARCH:-arm64}
         BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:13.2.0-base-ubuntu24.04}
         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/nightly/cu130}
-        TABFM_REF: ${TABFM_REF:-main}
+        TABFM_REF: ${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}
     container_name: zer0fit_mcp_server
     volumes:
       # Mount sample data directory (optional — files can be uploaded via chat)
@@ -20,6 +20,8 @@ services:
       - ZER0FIT_VRAM_TTL=${ZER0FIT_VRAM_TTL:-300}
       - ZER0FIT_UPLOAD_TTL_HOURS=${ZER0FIT_UPLOAD_TTL_HOURS:-6}
       - ZER0FIT_WEBUI_DIR=${ZER0FIT_WEBUI_DIR:-/app/webui_data/uploads}
+      - ZER0FIT_MAX_UPLOAD_MB=${ZER0FIT_MAX_UPLOAD_MB:-50}
+      - ZER0FIT_DEBUG=${ZER0FIT_DEBUG:-false}
     ports:
       - "${ZER0FIT_PORT:-8002}:8002"
     restart: unless-stopped

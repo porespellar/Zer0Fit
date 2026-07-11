@@ -262,6 +262,8 @@ codex exec "Use zer0fit to inspect the data and classify the species."
 | `ZER0FIT_LOG_LEVEL` | `INFO` | Python logging level |
 | `ZER0FIT_UPLOAD_DIR` | `/app/data/uploads` | Directory for uploaded files |
 | `ZER0FIT_WEBUI_DIR` | `/app/webui_data/uploads` | Open WebUI uploads directory for file ID resolution |
+| `ZER0FIT_MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
+| `ZER0FIT_DEBUG` | `false` | Enable Starlette debug mode (leaks tracebacks — for development only) |
 
 ---
 

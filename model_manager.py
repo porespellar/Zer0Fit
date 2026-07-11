@@ -131,28 +131,21 @@ class ModelManager:
         model entry.  The base model is loaded with the correct
         model_type so weights match the task.
         """
-        # Check if we need to evict or load, all under the lock to prevent
-        # race conditions with the background sweeper and concurrent callers.
-        need_load = False
+        # Evict if the wrong TabFM task type is loaded, all under the lock
+        # to prevent race conditions with the background sweeper and
+        # concurrent callers.
         async with self._lock:
             if self._hot is not None and self._hot.model_type == ModelType.TABFM:
                 if self._hot.tabfm_task_type != task_type:
-                    # Wrong task type — evict and reload with correct weights.
+                    # Wrong task type — evict so get_model reloads with
+                    # the correct weights.
                     await self._evict_locked(reason="tabfm_task_type_mismatch")
-                    need_load = True
-                else:
-                    # Already hot with the right task — touch the TTL.
-                    self._hot.last_used_at = time.monotonic()
-            else:
-                need_load = True
 
-        # Load outside this lock block — get_model acquires the lock internally.
-        # asyncio.to_thread prevents blocking the event loop, but the lock is
-        # still held inside get_model to serialize concurrent model loads.
-        if need_load:
-            model = await self.get_model(ModelType.TABFM, task_type=task_type)
-        else:
-            model = self._hot.instance  # type: ignore[union-attr]
+        # Always load via get_model which acquires the lock. Even when
+        # the model is already hot with the right task, we can't safely
+        # read self._hot.instance here without the lock — the sweeper
+        # may evict between our earlier check and this read.
+        model = await self.get_model(ModelType.TABFM, task_type=task_type)
 
         # Build and cache the estimator. Retry if the model was evicted
         # between the load and this block (the sweeper runs every 5s).

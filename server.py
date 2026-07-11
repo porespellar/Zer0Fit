@@ -258,9 +258,16 @@ def _resolve_path(file_path: str) -> str:
         "ZER0FIT_WEBUI_DIR", "/app/webui_data/uploads"
     )
     if os.path.isdir(WEBUI_UPLOAD_DIR):
+        webui_real = os.path.realpath(WEBUI_UPLOAD_DIR)
         for fname in os.listdir(WEBUI_UPLOAD_DIR):
             if len(basename) >= 8 and fname.startswith(basename):
                 candidate = os.path.join(WEBUI_UPLOAD_DIR, fname)
+                # Resolve symlinks and verify the real path stays within
+                # the WebUI upload directory (prevent symlink escape).
+                candidate_real = os.path.realpath(candidate)
+                if not candidate_real.startswith(webui_real + os.sep) \
+                        and candidate_real != webui_real:
+                    continue
                 if os.path.isfile(candidate):
                     return candidate
 
@@ -319,6 +326,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             await asyncio.to_thread(_cleanup_uploads)
             os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+            # Security: enforce max upload size to prevent OOM/disk exhaustion.
+            # Base64 is ~33% larger than the raw file; 50MB raw ≈ 67MB base64.
+            MAX_UPLOAD_BYTES = int(os.environ.get("ZER0FIT_MAX_UPLOAD_MB", "50")) * 1024 * 1024
+            if len(content_b64) > MAX_UPLOAD_BYTES * 1.34:
+                return _error(
+                    f"Upload too large. Base64 content is {len(content_b64) // (1024*1024)}MB, "
+                    f"exceeds the {MAX_UPLOAD_BYTES // (1024*1024)}MB limit. "
+                    f"Set ZER0FIT_MAX_UPLOAD_MB to increase.",
+                    filename=safe_name,
+                )
+
             # Decode base64 and validate
             try:
                 raw = base64.b64decode(content_b64, validate=True)
@@ -346,13 +364,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 f.write(raw)
 
             # Validate the file can actually be parsed by pandas.
-            # Read only the first 5 rows to avoid OOM on large uploads.
+            # Read only the first 5 rows to avoid OOM on large uploads
+            # (CSV and Excel only — JSON formats don't support nrows).
             try:
-                test_df = pipelines._read_tabular_file(file_path, nrows=5)
-            except TypeError:
-                # _read_tabular_file doesn't support nrows (e.g. JSON/JSONL)
-                # — fall back to full read for these formats.
-                test_df = pipelines._read_tabular_file(file_path)
+                if ext in (".csv", ".xls", ".xlsx"):
+                    test_df = pipelines._read_tabular_file(file_path, nrows=5)
+                else:
+                    # JSON / JSONL — must read in full (typically small)
+                    test_df = pipelines._read_tabular_file(file_path)
             except Exception as exc:
                 os.remove(file_path)
                 return _error(
@@ -457,9 +476,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 in_context_size=pipelines.TABFM_IN_CONTEXT_SIZE
             )
             if not chunks:
+                min_rows = pipelines.TABFM_IN_CONTEXT_SIZE + 4
                 return _error(
-                    "Not enough rows in the file to produce a prediction chunk. "
-                    "Need at least 512 rows (in_context_size + test rows)."
+                    f"Not enough rows in the file to produce a prediction chunk. "
+                    f"Need at least {min_rows} rows ({pipelines.TABFM_IN_CONTEXT_SIZE} "
+                    f"in-context + 4 test rows). Try a larger file."
                 )
 
             # Determine how many chunks to process.
@@ -678,7 +699,11 @@ def create_starlette_app() -> Starlette:
         # Health check
         Route("/health", endpoint=health),
     ]
-    return Starlette(routes=routes, debug=True, lifespan=lifespan)
+    return Starlette(
+        routes=routes,
+        debug=os.environ.get("ZER0FIT_DEBUG", "false").lower() in ("1", "true", "yes"),
+        lifespan=lifespan,
+    )
 
 
 app = create_starlette_app()

@@ -79,6 +79,8 @@ The `ModelManager` class in `model_manager.py` enforces a strict state machine f
 | `MUTUAL_EXCLUSION_EVICTION` | Active model being evicted because the other foundation type was requested, or TTL expired. |
 | `PURGED_TO_HOST` | References dropped, Python GC collected, CUDA cache cleared. Transient — immediately returns to `IDLE`. |
 
+> **Note:** The states above describe the conceptual lifecycle for documentation purposes. The `ModelManager.state` property currently only returns two values at runtime: `IDLE` (no model loaded) and `HOT_CACHED` (model is resident). The loading and eviction states are transient and handled internally via `asyncio.Lock` + `asyncio.to_thread`.
+
 ### TTL sweeper
 
 A background `asyncio.Task` (`_sweeper_loop`) runs every 5 seconds. If the hot model has not been touched within `ZER0FIT_VRAM_TTL` seconds (default 300), it auto-purges the model and frees VRAM. The sweeper self-terminates when no model is hot.
@@ -164,7 +166,7 @@ The compiled `ForecastConfig` uses `max_context=1024`, so the downsampler target
   estimator.predict_proba(X_test)  [classification only]
 ```
 
-For very large files, `iter_tabular_chunks()` streams the CSV with `pd.read_csv(chunksize=1000)` to avoid loading the entire dataset into host RAM.
+For very large files, the full DataFrame is loaded into host RAM before chunking. This prevents GPU OOM (each chunk is only 1,000 rows) but files larger than ~1M rows may exhaust host memory.
 
 ---
 
