@@ -4,8 +4,9 @@
 # ============================================================================
 # Detects the host architecture and GPU type, configures the Docker build
 # with the correct CUDA base image and PyTorch wheel index, builds and
-# launches the Zer0Fit container, then pre-downloads and loads both models
-# into VRAM so the user doesn't experience delays on first use.
+# launches the Zer0Fit container, then downloads model weights to disk
+# cache and loads them into VRAM so the user doesn't experience delays
+# on first use.
 #
 # Usage:
 #   ./install.sh              # interactive (menu-driven configuration)
@@ -254,12 +255,13 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${BOLD} Ready to build and deploy:${NC}"
 echo -e "  • CUDA base image: $BASE_IMAGE"
 echo -e "  • PyTorch (pre-built, $ARCH_LABEL)"
-echo -e "  • TimesFM 2.5 (200M params) — will be downloaded after build"
-echo -e "  • TabFM v1.0.0 — will be downloaded after build"
+echo -e "  • TimesFM 2.5 (200M params) — weights downloaded to cache after build"
+echo -e "  • TabFM v1.0.0 — weights downloaded to cache after build"
 echo -e "  • MCP server on port $ZER0FIT_PORT"
 echo ""
 echo -e " Build takes 5-10 minutes (downloading torch + deps)."
-echo -e " After build, both models will be downloaded and loaded into VRAM."
+echo -e " After build, model weights are downloaded to disk cache and"
+echo -e " loaded into GPU VRAM (takes 1-3 min per model)."
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -318,17 +320,19 @@ ok "Server is live: $HEALTH"
 # ── Pre-download and load models ──────────────────────────────────────────
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD} Downloading and loading models into VRAM${NC}"
+echo -e "${BOLD} Downloading model weights and loading into VRAM${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 echo "  This downloads model weights from Hugging Face Hub (~1.5GB total)"
-echo "  and loads them into GPU VRAM. This takes 1-3 minutes per model."
-echo "  After this, predictions will be instant on first use."
+echo "  to the container's disk cache, then loads them into GPU VRAM."
+echo "  Weights are cached on disk — subsequent restarts load from cache"
+echo "  (no re-download). VRAM residency is cleared after 5 min idle."
+echo "  This takes 1-3 minutes per model (depending on network speed)."
 echo ""
 
 # ── Pre-load TimesFM ──────────────────────────────────────────────────────
-echo -e "${BLUE}[1/2]${NC} Downloading TimesFM 2.5 (200M params)..."
-echo "    Downloading from huggingface.co/google/timesfm-2.5-200m-pytorch..."
+echo -e "${BLUE}[1/2]${NC} Downloading TimesFM 2.5 weights (200M params)..."
+echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 # The preload endpoint triggers the download + VRAM load.
 # We also tail the container logs so the user sees download progress.
 PRELOAD_URL="http://127.0.0.1:$ZER0FIT_PORT/preload"
@@ -347,7 +351,7 @@ TIMESFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
 kill $LOG_PID 2>/dev/null || true
 
 if echo "$TIMESFM_RESULT" | grep -q '"timesfm": "loaded"'; then
-    ok "TimesFM 2.5 downloaded and loaded into VRAM ✅"
+    ok "TimesFM 2.5 weights cached on disk and loaded into VRAM ✅"
 else
     warn "TimesFM pre-load result: $TIMESFM_RESULT"
     warn "TimesFM will be downloaded on first forecast call instead."
@@ -355,8 +359,8 @@ fi
 
 # ── Pre-load TabFM ────────────────────────────────────────────────────────
 echo ""
-echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0..."
-echo "    Downloading from huggingface.co/google/tabfm-1.0.0-pytorch..."
+echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0 weights..."
+echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 
 # Stream logs again for TabFM download
 ($COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 | grep -i -E "(tabfm|download|loading|huggingface|model)" &
@@ -372,7 +376,7 @@ TABFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
 kill $LOG_PID 2>/dev/null || true
 
 if echo "$TABFM_RESULT" | grep -q '"tabfm": "loaded"'; then
-    ok "TabFM v1.0.0 downloaded and loaded into VRAM ✅"
+    ok "TabFM v1.0.0 weights cached on disk and loaded into VRAM ✅"
 else
     warn "TabFM pre-load result: $TABFM_RESULT"
     warn "TabFM will be downloaded on first tabular call instead."
@@ -438,7 +442,7 @@ echo "  $COMPOSE_CMD --profile gpu logs -f     # View logs"
 echo "  $COMPOSE_CMD --profile gpu down         # Stop server"
 echo "  $COMPOSE_CMD --profile gpu up -d        # Start (detached)"
 echo "  curl $HEALTH_URL                         # Health check"
-echo "  curl -X POST $PRELOAD_URL                # Re-download models"
+echo "  curl -X POST $PRELOAD_URL                # Re-download/cache model weights"
 echo ""
 if [[ "$FINAL_STATE" == "HOT_CACHED" ]]; then
     ok "Models are loaded in VRAM and ready for predictions."

@@ -707,18 +707,23 @@ async def health(request):
             "mcp": "/mcp (Streamable HTTP — preferred for Open WebUI 0.10+)",
             "sse": "/sse (SSE — legacy fallback)",
             "health": "/health",
-            "preload": "/preload (POST — trigger model download + VRAM load)",
+            "preload": "/preload (POST — download weights to cache + load into VRAM)",
         },
         "version": "1.0.0",
     })
 
 
 async def preload(request):
-    """Trigger model pre-loading into VRAM.
+    """Trigger model weight download and VRAM load.
 
-    Called by install.sh after the Docker build to download and load
-    both models so the user doesn't experience a delay on first use.
-    Returns JSON with the load status and which models are now hot.
+    Downloads model weights from Hugging Face Hub to the container's
+    disk cache (persistent across restarts), then loads them into GPU
+    VRAM. Called by install.sh after the Docker build so the user
+    doesn't experience a delay on first use.
+
+    Weights remain cached on disk — subsequent restarts load from
+    cache without re-downloading. VRAM residency is cleared after
+    ZER0FIT_VRAM_TTL seconds of inactivity (default 300s).
     """
     import json as _json
     try:
