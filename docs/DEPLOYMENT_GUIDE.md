@@ -11,6 +11,8 @@ Zer0Fit is a server that exposes two of Google's foundation models to AI assista
 
 Both models are **zero-shot** — they don't need to be trained on your data. You just give them examples and they make predictions immediately. No machine learning expertise required.
 
+> ⚠️ **Use at Your Own Risk** — Zer0Fit is intended for research and educational purposes only. Predictions may be inaccurate. The developer is not responsible for decisions made based on model output. See the full [Disclaimer](../DISCLAIMER.md).
+
 ---
 
 ## How It Works
@@ -72,6 +74,7 @@ zerofit_project/
 ├── server.py              # MCP server (Streamable HTTP + SSE)
 ├── README.md              # Quick reference
 ├── ARCHITECTURE.md        # Technical design
+├── DISCLAIMER.md          # No warranty, use-at-your-own-risk
 ├── openwebui/
 │   └── skill_content.md   # Open WebUI skill
 └── install.sh             # One-command installer

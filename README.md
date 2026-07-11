@@ -8,6 +8,10 @@ Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v
 
 **Zero-shot means no training required** — just attach a CSV and describe what you want to predict. No ML expertise, no hyperparameter tuning, no feature engineering.
 
+> ⚠️ **Disclaimer — Use at Your Own Risk**
+>
+> Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as the sole basis for financial, medical, legal, safety-critical, or employment decisions. See the full [Disclaimer](DISCLAIMER.md).
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ---
@@ -314,6 +318,7 @@ Zer0Fit/
 ├── server.py                 # MCP server (port 8002, Streamable HTTP + SSE)
 ├── README.md                 # This file
 ├── ARCHITECTURE.md           # Technical design doc
+├── DISCLAIMER.md            # No warranty, use-at-your-own-risk notice
 ├── LICENSE                   # Apache 2.0
 ├── ATTRIBUTION.md            # Third-party model attributions
 ├── docs/
@@ -332,6 +337,7 @@ Zer0Fit/
 
 | Document | Audience | Contents |
 |---|---|---|
+| **[Disclaimer](DISCLAIMER.md)** | All users | No warranty, research-use-only, limitation of liability |
 | **[Deployment & Usage Guide](docs/DEPLOYMENT_GUIDE.md)** | Everyone | Full deployment + Open WebUI setup + examples + troubleshooting |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | Developers | VRAM state machine, pipeline topology, hardware matrix |
 | **[Open WebUI Skill](openwebui/)** | Open WebUI admins | Skill for guiding LLM tool selection |
