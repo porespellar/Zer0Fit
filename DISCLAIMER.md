@@ -31,6 +31,17 @@ To the maximum extent permitted by applicable law, neither the developer nor any
 
 By installing, deploying, configuring, or using Zer0Fit — or by acting on any output it produces — you accept full responsibility for evaluating the accuracy and appropriateness of the results for your specific use case. **Use at your own risk.**
 
-## Third-Party Models
+## Third-Party Models & Licensing
 
-Zer0Fit uses Google's TimesFM and TabFM models under their respective Apache 2.0 licenses. These models are independent works with their own licenses, limitations, and potential biases. The developer of Zer0Fit is not affiliated with or endorsed by Google. See [ATTRIBUTION.md](ATTRIBUTION.md) for model citations.
+Zer0Fit uses Google's TimesFM and TabFM models. These are independent works with their own licenses, limitations, and potential biases. The developer of Zer0Fit is not affiliated with or endorsed by Google.
+
+- **TimesFM 2.5** — model weights and source code under Apache License 2.0
+- **TabFM v1.0.0** — source code under Apache 2.0, but **model weights are under the TabFM Non-Commercial License v1.0**, which prohibits commercial use. You must review and comply with this license before deploying Zer0Fit with TabFM.
+
+See [ATTRIBUTION.md](ATTRIBUTION.md) for full license texts and citations.
+
+## Non-Commercial Use Restriction (TabFM)
+
+The TabFM model weights are licensed for **non-commercial use only** under the [TabFM Non-Commercial License v1.0](https://huggingface.co/google/tabfm-1.0.0-pytorch/blob/main/LICENSE). Commercial use of the TabFM weights — including but not limited to selling predictions, offering Zer0Fit as a paid service with TabFM enabled, or using TabFM outputs in a commercial product — is **not permitted** under that license.
+
+Zer0Fit's own source code (the MCP server, pipelines, and integration layer) is Apache 2.0 and may be used commercially. However, the TabFM model weights it downloads at runtime are governed by the stricter non-commercial license. **The developer of Zer0Fit is not responsible for ensuring your compliance with Google's TabFM license — that is your obligation.**

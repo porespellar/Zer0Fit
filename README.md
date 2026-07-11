@@ -10,7 +10,7 @@ Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v
 
 > ⚠️ **Disclaimer — Use at Your Own Risk**
 >
-> Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as a basis for financial, medical, legal, safety-critical, or employment decisions. See the full [Disclaimer](DISCLAIMER.md).
+> Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as a basis for financial, medical, legal, safety-critical, or employment decisions. **TabFM model weights are non-commercial** — see the full [Disclaimer](DISCLAIMER.md).
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -377,4 +377,4 @@ This project is licensed under the **Apache License, Version 2.0**. See [LICENSE
 - **Airline Passengers** — Box & Jenkins, 1976. Public domain time-series dataset.
 - **California Housing** — Pace & Barry, 1997. Public domain regression dataset.
 
-Both TimesFM and TabFM are used under the terms of the Apache 2.0 license. No modifications have been made to the original model weights. This project provides a server/transport layer around these models — the models themselves are separate works with their own licenses.
+TimesFM is used under the terms of the Apache License 2.0. TabFM source code is Apache 2.0, but **TabFM model weights are licensed under the TabFM Non-Commercial License v1.0** — commercial use of the weights is prohibited. No modifications have been made to the original model weights. This project provides a server/transport layer around these models — the models themselves are separate works with their own licenses. See [DISCLAIMER.md](DISCLAIMER.md) and [ATTRIBUTION.md](ATTRIBUTION.md) for details.
