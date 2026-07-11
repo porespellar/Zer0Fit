@@ -6,7 +6,6 @@
 # --no-deps so it never overwrites the carefully selected torch wheel.
 
 mcp[cli]>=1.0.0
-fastapi>=0.110.0
 uvicorn>=0.30.1
 starlette>=0.37.2
 pandas>=2.2.0

@@ -26,9 +26,11 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from contextlib import asynccontextmanager
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from starlette.responses import JSONResponse
@@ -63,7 +65,7 @@ def _cleanup_uploads() -> int:
             # UPLOAD_DIR — prevents symlink-following attacks that could
             # delete arbitrary files outside the upload directory.
             real = os.path.realpath(path)
-            if not real.startswith(upload_real + os.sep):
+            if not (real + os.sep).startswith(upload_real + os.sep):
                 logger.warning("Skipping cleanup of symlink escape: %s -> %s", path, real)
                 continue
             if os.path.getmtime(real) < cutoff:
@@ -79,8 +81,10 @@ def _cleanup_uploads() -> int:
 app_server = Server("zer0fit-mcp")
 
 
-def _json_safe(v):
+def _json_safe_scalar(v):
     """Convert a numpy/pandas scalar to a JSON-serializable Python value."""
+    if isinstance(v, np.ndarray):
+        return v.tolist()
     if isinstance(v, (np.integer,)):
         return int(v)
     if isinstance(v, (np.floating,)):
@@ -262,13 +266,14 @@ def _resolve_path(file_path: str) -> str:
     # Open WebUI attachment ID. We match by prefix in the webui uploads dir.
     # Security: require a minimum prefix length (UUID-sized) to prevent IDOR —
     # a short prefix like "0" would match any file starting with "0".
+    # Use 32 chars (full UUID hex without hyphens) for collision resistance.
     WEBUI_UPLOAD_DIR = os.environ.get(
         "ZER0FIT_WEBUI_DIR", "/app/webui_data/uploads"
     )
     if os.path.isdir(WEBUI_UPLOAD_DIR):
         webui_real = os.path.realpath(WEBUI_UPLOAD_DIR)
         for fname in os.listdir(WEBUI_UPLOAD_DIR):
-            if len(basename) >= 8 and fname.startswith(basename):
+            if len(basename) >= 32 and fname.startswith(basename):
                 candidate = os.path.join(WEBUI_UPLOAD_DIR, fname)
                 # Resolve symlinks and verify the real path stays within
                 # the WebUI upload directory (prevent symlink escape).
@@ -279,10 +284,13 @@ def _resolve_path(file_path: str) -> str:
                 if os.path.isfile(candidate):
                     return candidate
 
-    # Check ZeroFit uploads directory (exact filename match only)
+    # Check ZeroFit uploads directory (exact filename match only, with
+    # symlink verification for consistency with the WebUI uploads path).
     uploads_candidate = os.path.join(UPLOAD_DIR, basename)
-    if os.path.isfile(uploads_candidate):
-        return uploads_candidate
+    uploads_real = os.path.realpath(uploads_candidate)
+    upload_dir_real = os.path.realpath(UPLOAD_DIR)
+    if uploads_real.startswith(upload_dir_real + os.sep) and os.path.isfile(uploads_real):
+        return uploads_real
 
     # Check /app/data (exact filename match only)
     data_candidate = os.path.join("/app/data", basename)
@@ -380,7 +388,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 else:
                     # JSON / JSONL — must read in full (typically small)
                     test_df = pipelines._read_tabular_file(file_path)
-            except Exception as exc:
+            except (ValueError, pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
                 os.remove(file_path)
                 return _error(
                     f"File was decoded and written but could not be parsed as "
@@ -437,7 +445,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                         "n_non_null": int(df[col].notna().sum()),
                         "n_unique": int(df[col].nunique()),
                         "sample_values": [
-                            _json_safe(v) for v in df[col].dropna().head(3).tolist()
+                            _json_safe_scalar(v) for v in df[col].dropna().head(3).tolist()
                         ],
                     }
                     for col in df.columns
@@ -457,8 +465,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 file_path, target_column, datetime_column
             )
             tfm = await _mgr.get_model(ModelType.TIMESFM)
-            point_forecast, quantile_forecast = tfm.forecast(
-                horizon=horizon, inputs=inputs
+            point_forecast, quantile_forecast = await asyncio.wait_for(
+                asyncio.to_thread(tfm.forecast, horizon=horizon, inputs=inputs),
+                timeout=120,
             )
             result = {
                 "model": "timesfm-2.5-200m-pytorch",
@@ -507,19 +516,33 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             total_train = 0
             total_test = 0
 
-            for X_train, y_train, X_test, y_test in chunks:
-                estimator.fit(X_train, y_train)
-                # Predict in small batches to avoid OOM / timeouts on the GPU.
-                PRED_BATCH = 128
-                preds_list: list = []
-                for i in range(0, len(X_test), PRED_BATCH):
-                    X_batch = X_test.iloc[i : i + PRED_BATCH]
-                    batch_preds = estimator.predict(X_batch)
-                    preds_list.extend(np.asarray(batch_preds).tolist())
-                all_preds.extend(preds_list)
-                all_truth.extend(np.asarray(y_test).tolist())
-                total_train += len(X_train)
-                total_test += len(X_test)
+            def _run_tabular_inference() -> tuple[list, list, int, int, Any]:
+                """Run TabFM inference in a thread to avoid blocking the event loop."""
+                _preds: list = []
+                _truth: list = []
+                _train = 0
+                _test = 0
+                _last_X_test = None
+                for X_train, y_train, X_test, y_test in chunks:
+                    estimator.fit(X_train, y_train)
+                    # Predict in small batches to avoid OOM / timeouts on the GPU.
+                    PRED_BATCH = 128
+                    preds_list: list = []
+                    for i in range(0, len(X_test), PRED_BATCH):
+                        X_batch = X_test.iloc[i : i + PRED_BATCH]
+                        batch_preds = estimator.predict(X_batch)
+                        preds_list.extend(np.asarray(batch_preds).tolist())
+                    _preds.extend(preds_list)
+                    _truth.extend(np.asarray(y_test).tolist())
+                    _train += len(X_train)
+                    _test += len(X_test)
+                    _last_X_test = X_test
+                return _preds, _truth, _train, _test, _last_X_test
+
+            all_preds, all_truth, total_train, total_test, last_X_test = await asyncio.wait_for(
+                asyncio.to_thread(_run_tabular_inference),
+                timeout=300,
+            )
 
             result: dict[str, Any] = {
                 "model": "tabfm-1.0.0-pytorch",
@@ -578,7 +601,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 # Probabilities (last batch only, memory-safe)
                 if hasattr(estimator, "predict_proba"):
                     try:
-                        probs = estimator.predict_proba(X_test.iloc[:32])
+                        probs = estimator.predict_proba(last_X_test.iloc[:32])
                         result["probabilities"] = np.asarray(probs).tolist()
                     except Exception as exc:
                         result["probabilities_error"] = str(exc)
@@ -640,9 +663,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
 sse = SseServerTransport("/messages/")
 
 # Streamable HTTP transport (for Open WebUI v0.10+ which uses streamablehttp_client)
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-from contextlib import asynccontextmanager
-
 # The session manager handles multiple HTTP requests within the same MCP session.
 # It takes the MCP server app directly and manages the transport lifecycle.
 http_session_manager = StreamableHTTPSessionManager(
@@ -683,7 +703,7 @@ async def handle_sse(request):
     async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
         init_options = InitializationOptions(
             server_name="zer0fit-mcp",
-            server_version="1.0.0",
+            server_version="1.0.1",
             capabilities=app_server.get_capabilities(
                 notification_options=NotificationOptions(),
                 experimental_capabilities=None,
@@ -709,7 +729,7 @@ async def health(request):
             "health": "/health",
             "preload": "/preload (POST — download weights to cache + load into VRAM)",
         },
-        "version": "1.0.0",
+        "version": "1.0.1",
     })
 
 
@@ -725,9 +745,8 @@ async def preload(request):
     cache without re-downloading. VRAM residency is cleared after
     ZER0FIT_VRAM_TTL seconds of inactivity (default 300s).
     """
-    import json as _json
     try:
-        body = _json.loads(await request.body()) if await request.body() else {}
+        body = await request.json()
     except Exception:
         body = {}
 

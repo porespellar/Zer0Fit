@@ -40,8 +40,9 @@ def _read_tabular_file(file_path: str, nrows: int | None = None) -> pd.DataFrame
     """Read a CSV, Excel (.xls/.xlsx), or JSON file into a pandas DataFrame.
 
     The format is detected by the file extension.
-    If *nrows* is given, only the first *nrows* rows are read (CSV/Excel only;
-    JSON formats are always read in full).
+    If *nrows* is given, only the first *nrows* rows are read (CSV/Excel
+    natively; JSON formats truncate via head() after full read, JSONL
+    supports nrows natively).
     """
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
@@ -53,12 +54,15 @@ def _read_tabular_file(file_path: str, nrows: int | None = None) -> pd.DataFrame
     elif ext == ".json":
         # JSON can be array of objects or nested — try records first
         try:
-            return pd.read_json(file_path, orient="records")
+            df = pd.read_json(file_path, orient="records")
         except ValueError:
-            return pd.read_json(file_path)
+            df = pd.read_json(file_path)
+        if nrows is not None:
+            df = df.head(nrows)
+        return df
     elif ext == ".jsonl":
-        # JSON Lines: one JSON object per line
-        return pd.read_json(file_path, lines=True)
+        # JSON Lines: one JSON object per line — supports nrows natively
+        return pd.read_json(file_path, lines=True, nrows=nrows)
     else:
         raise ValueError(
             f"Unsupported file format: {ext!r}. "
@@ -114,7 +118,7 @@ def downsample_for_timesfm(series: pd.Series) -> Tuple[np.ndarray, str]:
         # Pick a coarser frequency roughly proportional to the overshoot.
         overshoot = len(arr) / TIMESFM_MAX_CONTEXT
         # candidate frequencies from fine to coarse
-        candidates = ["min", "5min", "10min", "H", "D", "W"]
+        candidates = ["min", "5min", "10min", "h", "D", "W"]
         rule = candidates[min(len(candidates) - 1, int(math.log2(overshoot)) + 1)]
         resampled = series.dropna().resample(rule).mean()
         arr = resampled.dropna().to_numpy(dtype=np.float32)

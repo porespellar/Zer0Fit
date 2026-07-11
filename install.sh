@@ -338,9 +338,9 @@ echo "    Downloading from huggingface.co → disk cache, then loading into VRAM
 PRELOAD_URL="http://127.0.0.1:$ZER0FIT_PORT/preload"
 
 # Stream container logs in background so user sees download progress
-($COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 | grep -i -E "(timesfm|download|loading|huggingface|model)" &
-  LOG_PID=$!
-) 2>/dev/null || true
+$COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 \
+    | grep -i -E "(timesfm|download|loading|huggingface|model)" &
+LOG_PID=$!
 
 TIMESFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
     -H "Content-Type: application/json" \
@@ -348,7 +348,8 @@ TIMESFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
     --max-time 300 2>&1) || true
 
 # Stop log streaming
-kill $LOG_PID 2>/dev/null || true
+kill "$LOG_PID" 2>/dev/null || true
+wait "$LOG_PID" 2>/dev/null || true
 
 if echo "$TIMESFM_RESULT" | grep -q '"timesfm": "loaded"'; then
     ok "TimesFM 2.5 weights cached on disk and loaded into VRAM ✅"
@@ -363,9 +364,9 @@ echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0 weights..."
 echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 
 # Stream logs again for TabFM download
-($COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 | grep -i -E "(tabfm|download|loading|huggingface|model)" &
-  LOG_PID=$!
-) 2>/dev/null || true
+$COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 \
+    | grep -i -E "(tabfm|download|loading|huggingface|model)" &
+LOG_PID=$!
 
 TABFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
     -H "Content-Type: application/json" \
@@ -373,7 +374,8 @@ TABFM_RESULT=$(curl -s -X POST "$PRELOAD_URL" \
     --max-time 300 2>&1) || true
 
 # Stop log streaming
-kill $LOG_PID 2>/dev/null || true
+kill "$LOG_PID" 2>/dev/null || true
+wait "$LOG_PID" 2>/dev/null || true
 
 if echo "$TABFM_RESULT" | grep -q '"tabfm": "loaded"'; then
     ok "TabFM v1.0.0 weights cached on disk and loaded into VRAM ✅"

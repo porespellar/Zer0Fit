@@ -4,9 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        TARGETARCH: ${BUILDARCH:-arm64}
-        BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:13.2.0-base-ubuntu24.04}
-        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/nightly/cu130}
+        TARGETARCH: ${BUILDARCH:-amd64}
+        BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:12.4.1-base-ubuntu24.04}
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
         TABFM_REF: ${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}
     container_name: zer0fit_mcp_server
     volumes:
