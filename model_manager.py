@@ -70,8 +70,6 @@ class ModelManager:
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     _hot: Optional[_HotModel] = field(default=None, repr=False)
     _sweeper_task: Optional[asyncio.Task] = field(default=None, repr=False)
-    # in-process cache of compiled TimesFM config
-    _timesfm_compiled: bool = field(default=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -126,7 +124,8 @@ class ModelManager:
         # reload with the correct model_type.
         if self._hot is not None and self._hot.model_type == ModelType.TABFM:
             if not hasattr(self._hot, "_tabfm_task_type") or self._hot._tabfm_task_type != task_type:
-                await self._evict_locked(reason="tabfm_task_type_mismatch")
+                async with self._lock:
+                    await self._evict_locked(reason="tabfm_task_type_mismatch")
 
         # Set the pending task type so _load_tabfm_loaded loads the right weights.
         self._pending_tabfm_task = task_type
@@ -196,7 +195,6 @@ class ModelManager:
                 fix_quantile_crossing=True,
             )
         )
-        self._timesfm_compiled = True
         logger.info("TimesFM loaded and compiled successfully.")
         return tfm
 
@@ -224,7 +222,6 @@ class ModelManager:
         self._hot.clf = None
         self._hot.reg = None
         self._hot = None
-        self._timesfm_compiled = False
         # Force GC and clear CUDA cache.
         gc.collect()
         try:

@@ -164,16 +164,6 @@ TABFM_REF=$TABFM_REF
 EOF
 ok ".env file written to $ENV_FILE"
 
-# ── Update docker-compose.yml port if non-default ─────────────────────────
-if [ "$ZER0FIT_PORT" != "8002" ]; then
-    info "Updating docker-compose.yml port to $ZER0FIT_PORT..."
-    if [[ "$(uname)" == "Darwin" ]]; then
-        sed -i '' "s/\"8002:8002\"/\"$ZER0FIT_PORT:8002\"/" docker-compose.yml
-    else
-        sed -i "s/\"8002:8002\"/\"$ZER0FIT_PORT:8002\"/" docker-compose.yml
-    fi
-fi
-
 # ── Create data directory if it doesn't exist ─────────────────────────────
 mkdir -p "$SCRIPT_DIR/data"
 ok "Data directory ready: $SCRIPT_DIR/data/"
@@ -211,6 +201,8 @@ $COMPOSE_CMD --profile gpu build 2>&1 | while IFS= read -r line; do
        [[ "$line" =~ \ Built\ $ ]] || \
        [[ "$line" =~ (Building|Downloading|Installing) ]]; then
         echo "  $line"
+    else
+        echo "$line" >&2
     fi
 done
 

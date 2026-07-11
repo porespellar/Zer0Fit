@@ -4,11 +4,12 @@
 
 ```
                     ┌────────────────────────────────────────────────┐
-                    │              server.py (SSE-MCP Bridge)          │
+                    │              server.py (MCP Bridge)              │
                     │                                                │
   Open WebUI ──SSE──▶  Starlette app on 0.0.0.0:8002                 │
                     │     ├── /sse          (SseServerTransport)     │
                     │     ├── /messages/    (POST back-channel)       │
+                    │     ├── /mcp          (Streamable HTTP, v0.10+)  │
                     │     └── /health       (liveness probe)          │
                     └───────────┬───────────────────┬────────────────┘
                                 │                   │
@@ -104,7 +105,7 @@ A background `asyncio.Task` (`_sweeper_loop`) runs every 5 seconds. If the hot m
     ├── len ≤ 1024?  ──yes──▶ return raw np.float32 array
     │
     ├── has DatetimeIndex?
-    │     yes ──▶ resample to coarser rule (min/5min/H/D/W)
+    │     yes ──▶ resample to coarser rule (min/5min/10min/H/D/W)
     │              → take mean
     │              → if still > 1024, fall through
     │
@@ -132,8 +133,8 @@ The compiled `ForecastConfig` uses `max_context=1024`, so the downsampler target
     ▼
   chunk_tabular(df, target_column, chunk_size=1000)
     │
-    ├── block[0:1000]  →  80% train / 20% test split
-    ├── block[1000:2000] → 80% train / 20% test split
+    ├── block[0:1000]  →  first 512 rows = context, rest = test
+    ├── block[1000:2000] →  first 512 rows = context, rest = test
     ├── ...
     │
     ▼

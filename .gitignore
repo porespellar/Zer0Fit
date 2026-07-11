@@ -3,6 +3,10 @@
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
 
 # Environment
 .env
@@ -21,9 +25,6 @@ __pycache__/
 data/california_housing.csv
 data/sample_ts.csv
 data/sample_tabular.csv
-
-# Docker
-.dockerignore
 
 # Uploads (auto-generated)
 data/uploads/

@@ -80,9 +80,16 @@ def load_time_series(
             f"columns: {list(df.columns)}"
         )
     series = df[target_column].astype(float)
-    if datetime_column and datetime_column in df.columns:
-        series.index = pd.to_datetime(df[datetime_column])
-        series = series.sort_index()
+    if datetime_column:
+        if datetime_column in df.columns:
+            series.index = pd.to_datetime(df[datetime_column])
+            series = series.sort_index()
+        else:
+            logger.warning(
+                "datetime_column %r not found in columns %s — "
+                "proceeding without temporal ordering",
+                datetime_column, list(df.columns),
+            )
     return series
 
 
@@ -195,38 +202,3 @@ def chunk_tabular(
         y_test = test[target_column].to_numpy()
         chunks.append((X_train, y_train, X_test, y_test))
     return chunks
-
-
-def iter_tabular_chunks(
-    file_path: str,
-    target_column: str,
-    chunk_size: int = TABFM_CHUNK_SIZE,
-    in_context_size: int = TABFM_IN_CONTEXT_SIZE,
-    random_state: int = 42,
-):
-    """Memory-friendly generator that reads the CSV in 1,000-row blocks
-    using pandas `chunksize` and yields (context, test) splits per block.
-
-    The full file is shuffled before chunking to ensure class diversity.
-    Uses a small fixed in-context window (default 64 rows).
-    """
-    # Read full file, shuffle, then iterate chunks
-    df = pd.read_csv(file_path)
-    if target_column not in df.columns:
-        raise ValueError(
-            f"target_column {target_column!r} not found in {file_path}; "
-            f"columns: {list(df.columns)}"
-        )
-    df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
-    for start in range(0, len(df), chunk_size):
-        block = df.iloc[start : start + chunk_size]
-        effective_ctx = min(in_context_size, len(block) // 2)
-        if len(block) < effective_ctx + 4:
-            continue
-        train = block.iloc[:effective_ctx]
-        test = block.iloc[effective_ctx:]
-        X_train = train.drop(columns=[target_column])
-        y_train = train[target_column].to_numpy()
-        X_test = test.drop(columns=[target_column])
-        y_test = test[target_column].to_numpy()
-        yield X_train, y_train, X_test, y_test

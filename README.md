@@ -108,7 +108,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ### Regression (TabFM)
 
-> Attach `boston_housing.csv` and type: *"Run a regression on this data predicting `medv`."*
+> Attach `california_housing_small.csv` and type: *"Run a regression on this data predicting `MedHouseVal`."*
 >
 > Or: *"Predict the target column. Use regression."*
 
@@ -158,7 +158,7 @@ Zero-shot time-series forecasting via Google TimesFM 2.5.
 | `horizon` | int | ✅ | Number of future steps to predict |
 | `datetime_column` | string | — | Optional datetime column for temporal spacing |
 
-**Returns:** Point forecasts, quantile forecasts (confidence intervals), series length, and metrics (trend, forecast_range, summary).
+**Returns:** Point forecasts, quantile forecasts (confidence intervals), and series length.
 
 ### `zer0fit_tabular`
 
@@ -249,6 +249,7 @@ codex exec "Use zer0fit to inspect the data and classify the species."
 | Variable | Default | Description |
 |---|---|---|
 | `ZER0FIT_VRAM_TTL` | `300` | Idle seconds before auto-unloading model from GPU VRAM |
+| `ZER0FIT_PORT` | `8002` | Port exposed by the MCP server |
 | `ZER0FIT_UPLOAD_TTL_HOURS` | `6` | Hours before auto-deleting uploaded files |
 | `ZER0FIT_LOG_LEVEL` | `INFO` | Python logging level |
 | `ZER0FIT_UPLOAD_DIR` | `/app/data/uploads` | Directory for uploaded files |

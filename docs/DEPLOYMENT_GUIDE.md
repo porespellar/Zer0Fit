@@ -225,36 +225,36 @@ After saving, you should see four tools registered:
 
 The LLM summarizes: *"94.67% accuracy. Setosa is perfectly classified. Versicolor has 4 misclassified as virginica (92% F1). Virginica has 87% precision (some versicolor predicted as virginica but no false negatives)."*
 
-### Example 2: Regression (Boston Housing)
+### Example 2: Regression (California Housing)
 
 **What you do:**
-1. Attach `boston_housing.csv`
-2. Type: *"Run a regression on this data predicting medv."*
+1. Attach `california_housing_small.csv`
+2. Type: *"Run a regression on this data predicting MedHouseVal."*
 
 **What happens:**
-1. `zer0fit_inspect` discovers 14 columns including `medv` (target)
-2. `zer0fit_tabular` with `task_type: "regression"` and `target_column: "medv"`
-3. TabFM processes with 253 training rows + 253 test rows
+1. `zer0fit_inspect` discovers 9 columns including `MedHouseVal` (target)
+2. `zer0fit_tabular` with `task_type: "regression"` and `target_column: "MedHouseVal"`
+3. TabFM processes with 512 training rows + remainder as test rows
 
 **What you get back:**
 ```json
 {
   "model": "tabfm-1.0.0-pytorch",
   "task_type": "regression",
-  "n_train": 253,
-  "n_test": 253,
+  "n_train": 512,
+  "n_test": 488,
   "metrics": {
-    "r_squared": 0.9097,
-    "mae": 1.8407,
-    "rmse": 2.8129,
-    "mape_pct": 9.56,
-    "prediction_range": [9.22, 51.82],
-    "ground_truth_range": [6.3, 50.0]
+    "r_squared": 0.8820,
+    "mae": 0.2042,
+    "rmse": 0.3035,
+    "mape_pct": 12.1,
+    "prediction_range": [0.72, 4.98],
+    "ground_truth_range": [0.69, 5.01]
   }
 }
 ```
 
-The LLM summarizes: *"R² of 0.91 — the model explains 91% of the variation in housing prices. Average error is $1,840 (MAE) which is about 9.6% of the typical home value. Predictions range from $9.2K to $51.8K, closely matching the actual range of $6.3K to $50K."*
+The LLM summarizes: *"R² of 0.88 — the model explains 88% of the variation in housing prices. Average error is $20,420 (MAE). Predictions closely track the actual range."*
 
 ### Example 3: Forecasting (Airline Passengers)
 

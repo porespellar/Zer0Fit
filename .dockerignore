@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.DS_Store
+data/california_housing.csv
+data/sample_ts.csv
+data/sample_tabular.csv
+
+# Critical: exclude git history from build context
+.git/
+
+# Host-only files not needed in image
+.gitignore
+install.sh
+docker-compose.yml
+.env.example
+docs/
+openwebui/
+*.md
+
+# Uploads (user-generated at runtime)
+data/uploads/
+
+# IDE
+.idea/
+.vscode/

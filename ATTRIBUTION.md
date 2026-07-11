@@ -76,11 +76,14 @@ This project depends on several open-source Python packages, each under their ow
 | scikit-learn | BSD-3-Clause |
 | huggingface_hub | Apache 2.0 |
 | MCP (Python SDK) | MIT |
+| FastAPI | MIT |
 | Starlette / Uvicorn | BSD-3-Clause |
 | accelerate | Apache 2.0 |
 | einops | MIT |
 | openpyxl | MIT |
 | xlrd | BSD-3-Clause |
+| absl-py | Apache 2.0 |
+| TimesFM | Apache 2.0 |
 
 ---
 

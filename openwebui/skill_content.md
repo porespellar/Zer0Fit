@@ -1,9 +1,9 @@
 ---
 name: zerofit-workflow
-description: "Automated workflow for ZeroFit forecasting and tabular prediction tools. Inspects attached files and selects correct columns."
+description: "Automated workflow for Zer0Fit forecasting and tabular prediction tools. Inspects attached files and selects correct columns."
 ---
 
-# ZeroFit MCP Workflow
+# Zer0Fit MCP Workflow
 
 ## Workflow when a user asks to forecast, classify, or analyze data
 
@@ -34,12 +34,12 @@ The tool returns a `metrics` object with pre-computed summary statistics. Use th
 - `mape_pct` — mean absolute percentage error
 - `prediction_range` / `ground_truth_range` — min/max of predicted vs actual values
 
-**For forecasting** (`metrics` includes):
-- `trend` — overall direction (increasing/decreasing)
-- `forecast_range` — min to max forecast value
-- `summary` — one-line plain English description of the forecast
+**For forecasting** (no metrics block — the forecast result contains):
+- `point_forecast` — predicted future values (one per time step)
+- `quantile_forecast` — confidence intervals (10th-90th percentile)
+- `series_length` — number of data points used (after any downsampling)
 
-When presenting results, include the key metrics so the user understands quality. Don't just say the predictions — say *how good* they were.
+When presenting results, include the key metrics so the user understands quality. Don't just say the predictions — say *how good* they were (for classification and regression). For forecasting, describe the trend and pattern.
 
 ## Rules
 - ALWAYS call `zer0fit_inspect` FIRST. Never skip this step.

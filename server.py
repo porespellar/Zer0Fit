@@ -1,12 +1,14 @@
 """
 Zer0Fit server.py — the Enterprise SSE-MCP Bridge.
 
-Exposes two MCP tools to upstream LLM agents (e.g. Open WebUI):
+Exposes four MCP tools to upstream LLM agents (e.g. Open WebUI):
 
-  * zer0fit_forecast(file_path, target_column, horizon)
-  * zer0fit_tabular(file_path, target_column, task_type)
+  * zer0fit_inspect(file_path)
+  * zer0fit_upload_csv(filename, content_base64)
+  * zer0fit_forecast(file_path, target_column, horizon, datetime_column?)
+  * zer0fit_tabular(file_path, target_column, task_type, max_chunks?)
 
-Communication uses the MCP SseServerTransport over a Starlette/FastAPI
+Communication uses MCP SSE + Streamable HTTP over a Starlette/FastAPI
 application, strictly bound to 0.0.0.0:8002.
 """
 
@@ -76,6 +78,8 @@ def _json_safe(v):
         return float(v)
     if isinstance(v, (np.bool_,)):
         return bool(v)
+    if isinstance(v, (pd.Timestamp, pd.DatetimeTZDtype)):
+        return str(v)
     if pd.isna(v):
         return None
     return v
@@ -379,6 +383,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             file_path = _resolve_path(arguments["file_path"])
             target_column = arguments["target_column"]
             horizon = int(arguments["horizon"])
+            if horizon <= 0:
+                raise ValueError("horizon must be a positive integer (got %d)" % horizon)
             datetime_column = arguments.get("datetime_column")
 
             inputs = pipelines.make_timesfm_forecast_inputs(
@@ -453,20 +459,22 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
 
             # --- Summary metrics ---
             if task_type == "classification":
-                from collections import Counter
                 preds_arr = np.asarray(all_preds)
                 truth_arr = np.asarray(all_truth)
                 n_correct = int(np.sum(preds_arr == truth_arr))
                 n_total = len(all_preds)
                 accuracy = round(n_correct / n_total, 4) if n_total > 0 else 0.0
 
-                # Per-class metrics
-                classes = sorted(set(str(v) for v in np.unique(np.concatenate([truth_arr, preds_arr]))))
+                # Per-class metrics — stringify arrays so label comparisons work
+                # regardless of whether the model returned strings or numpy types.
+                preds_str = np.asarray([str(v) for v in preds_arr])
+                truth_str = np.asarray([str(v) for v in truth_arr])
+                classes = sorted(set(np.concatenate([truth_str, preds_str])))
                 class_metrics = []
                 for cls in classes:
-                    tp = int(np.sum((preds_arr == cls) & (truth_arr == cls)))
-                    fp = int(np.sum((preds_arr == cls) & (truth_arr != cls)))
-                    fn = int(np.sum((preds_arr != cls) & (truth_arr == cls)))
+                    tp = int(np.sum((preds_str == cls) & (truth_str == cls)))
+                    fp = int(np.sum((preds_str == cls) & (truth_str != cls)))
+                    fn = int(np.sum((preds_str != cls) & (truth_str == cls)))
                     precision = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
                     recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
                     f1 = round(2 * precision * recall / (precision + recall), 4) if (precision + recall) > 0 else 0.0
@@ -480,7 +488,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
 
                 # Confusion matrix
                 confusion = {}
-                for t, p in zip(truth_arr, preds_arr):
+                for t, p in zip(truth_str, preds_str):
                     key = f"{t}→{p}"
                     confusion[key] = confusion.get(key, 0) + 1
 
@@ -534,12 +542,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             str(exc),
             hint=(
                 "The file_path must be either (a) a path returned by "
-                "zer0fit_upload_csv, or (b) a filename that exists in "
-                "/app/data/ on the ZeroFit server. Open WebUI file "
-                "attachment IDs and internal paths are NOT accessible "
-                "to the ZeroFit server — upload the file first using "
-                "zer0fit_upload_csv with the actual file content as "
-                "base64."
+                "zer0fit_upload_csv, (b) a filename that exists in "
+                "/app/data/ on the Zer0Fit server, or (c) an Open WebUI "
+                "file attachment ID (if the Open WebUI uploads volume is "
+                "mounted). If the file is not accessible, upload it first "
+                "using zer0fit_upload_csv with the actual file content "
+                "as base64."
             ),
         )
     except ValueError as exc:
@@ -607,7 +615,6 @@ async def handle_sse(request):
             ),
         )
         await app_server.run(read_stream, write_stream, init_options)
-    return JSONResponse({"status": "ok"})
 
 
 async def health(request):

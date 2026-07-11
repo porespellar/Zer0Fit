@@ -17,4 +17,9 @@ einops>=0.8.0
 absl-py>=2.0.0
 openpyxl>=3.1.0
 xlrd>=2.0.1
+# numpy is a transitive dep but pin explicitly — numpy 2.x has breaking changes
+numpy>=1.26.0,<2.0.0
+# timesfm is installed AFTER the arch-specific torch wheel. The [torch] extra
+# declares torch as a dep — if pip's resolver tries to upgrade torch here,
+# use --no-deps for this line in the Dockerfile or pin torch version.
 timesfm[torch]==2.0.2
