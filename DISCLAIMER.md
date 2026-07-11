@@ -6,7 +6,7 @@ Zer0Fit is provided **"AS IS"** under the Apache License, Version 2.0, **without
 
 ## Research Use Only
 
-Zer0Fit is intended for **research, educational, and experimental purposes only**. It is **not** a certified, regulated, or clinically validated tool. It must not be used as the sole basis for any decision involving:
+Zer0Fit is intended for **research, educational, and experimental purposes only**. It is **not** a certified, regulated, or clinically validated tool. It must not be used as a basis for any decision involving:
 
 - **Financial decisions** — forecasting, investment, trading, risk assessment
 - **Medical or health-related decisions** — diagnosis, treatment, triage

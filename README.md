@@ -10,7 +10,7 @@ Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v
 
 > ⚠️ **Disclaimer — Use at Your Own Risk**
 >
-> Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as the sole basis for financial, medical, legal, safety-critical, or employment decisions. See the full [Disclaimer](DISCLAIMER.md).
+> Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as a basis for financial, medical, legal, safety-critical, or employment decisions. See the full [Disclaimer](DISCLAIMER.md).
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
