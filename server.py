@@ -71,8 +71,10 @@ def _cleanup_uploads() -> int:
             if os.path.getmtime(real) < cutoff:
                 os.remove(real)
                 deleted += 1
-        except OSError:
-            pass
+        except FileNotFoundError:
+            pass  # Already deleted by concurrent request — no action needed.
+        except OSError as exc:
+            logger.warning("Failed to clean up %s: %s", path, exc)
     if deleted:
         logger.info("Cleaned up %d expired upload(s) (TTL=%dh).", deleted, UPLOAD_TTL_HOURS)
     return deleted
@@ -91,6 +93,8 @@ def _json_safe_scalar(v):
         return float(v)
     if isinstance(v, (np.bool_,)):
         return bool(v)
+    if isinstance(v, (np.str_,)):
+        return str(v)
     if isinstance(v, pd.Timestamp):
         return str(v)
     if pd.isna(v):
@@ -275,6 +279,10 @@ def _resolve_path(file_path: str) -> str:
         for fname in os.listdir(WEBUI_UPLOAD_DIR):
             if len(basename) >= 32 and fname.startswith(basename):
                 candidate = os.path.join(WEBUI_UPLOAD_DIR, fname)
+                # Reject symlinks outright to prevent TOCTOU attacks where
+                # a file is replaced with a symlink between check and use.
+                if os.path.islink(candidate):
+                    continue
                 # Resolve symlinks and verify the real path stays within
                 # the WebUI upload directory (prevent symlink escape).
                 candidate_real = os.path.realpath(candidate)

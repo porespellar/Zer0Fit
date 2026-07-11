@@ -397,7 +397,7 @@ echo ""
 
 # Check if HuggingFace cache has the model weights
 echo "Checking Hugging Face model cache..."
-HF_CACHE=$(docker exec zer0fit_mcp_server ls /root/.cache/huggingface/hub/ 2>/dev/null || echo "")
+HF_CACHE=$(docker exec zer0fit_mcp_server ls /app/.cache/huggingface/hub/ 2>/dev/null || echo "")
 
 if echo "$HF_CACHE" | grep -q "timesfm"; then
     ok "TimesFM weights cached ✅"
