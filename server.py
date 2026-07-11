@@ -230,6 +230,7 @@ def _resolve_path(file_path: str) -> str:
     ALLOWED_ABS_DIRS = (
         "/app/data/",
         "/app/webui_data/",
+        os.path.abspath(UPLOAD_DIR) + "/",
     )
     if os.path.isabs(file_path):
         real = os.path.realpath(file_path)
@@ -251,10 +252,14 @@ def _resolve_path(file_path: str) -> str:
     # Open WebUI uploads: files are stored as {file_id}_{original_filename}
     # The LLM often passes just the file_id (e.g. "c9677920-...") which is the
     # Open WebUI attachment ID. We match by prefix in the webui uploads dir.
-    WEBUI_UPLOAD_DIR = "/app/webui_data/uploads"
+    # Security: require a minimum prefix length (UUID-sized) to prevent IDOR —
+    # a short prefix like "0" would match any file starting with "0".
+    WEBUI_UPLOAD_DIR = os.environ.get(
+        "ZER0FIT_WEBUI_DIR", "/app/webui_data/uploads"
+    )
     if os.path.isdir(WEBUI_UPLOAD_DIR):
         for fname in os.listdir(WEBUI_UPLOAD_DIR):
-            if fname.startswith(basename):
+            if len(basename) >= 8 and fname.startswith(basename):
                 candidate = os.path.join(WEBUI_UPLOAD_DIR, fname)
                 if os.path.isfile(candidate):
                     return candidate
@@ -340,8 +345,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             with open(file_path, "wb") as f:
                 f.write(raw)
 
-            # Validate the file can actually be parsed by pandas
+            # Validate the file can actually be parsed by pandas.
+            # Read only the first 5 rows to avoid OOM on large uploads.
             try:
+                test_df = pipelines._read_tabular_file(file_path, nrows=5)
+            except TypeError:
+                # _read_tabular_file doesn't support nrows (e.g. JSON/JSONL)
+                # — fall back to full read for these formats.
                 test_df = pipelines._read_tabular_file(file_path)
             except Exception as exc:
                 os.remove(file_path)
@@ -354,18 +364,21 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 )
 
             size_kb = os.path.getsize(file_path) / 1024
-            logger.info("Uploaded %s as %s (%.1f KB, %d rows, %d cols) → %s",
+            # test_df may be a partial read (nrows=5) — only use it for
+            # column validation, not as an accurate row count.
+            n_cols = len(test_df.columns)
+            col_names = list(test_df.columns)
+            logger.info("Uploaded %s as %s (%.1f KB, %d cols) → %s",
                         safe_name, stored_name, size_kb,
-                        len(test_df), len(test_df.columns), file_path)
+                        n_cols, file_path)
 
             result = {
                 "file_path": file_path,
                 "original_filename": safe_name,
                 "stored_filename": stored_name,
                 "size_kb": round(size_kb, 1),
-                "n_rows": len(test_df),
-                "n_columns": len(test_df.columns),
-                "columns": list(test_df.columns),
+                "n_columns": n_cols,
+                "columns": col_names,
                 "message": (
                     f"File uploaded successfully to {file_path}. "
                     f"Use this exact path as file_path in zer0fit_forecast or "
@@ -429,7 +442,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
             # How many chunks to predict (default: 1).  Set to 0 or -1 for all.
             # Cap at 10 to prevent OOM and massive JSON responses on large files.
             MAX_CHUNKS_LIMIT = 10
-            max_chunks = int(arguments.get("max_chunks", 1))
+            max_chunks_raw = arguments.get("max_chunks")
+            max_chunks = int(max_chunks_raw) if max_chunks_raw is not None else 1
             if max_chunks <= 0:
                 max_chunks = MAX_CHUNKS_LIMIT
             else:

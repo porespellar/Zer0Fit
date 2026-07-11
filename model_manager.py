@@ -118,6 +118,8 @@ class ModelManager:
                 loaded_at=time.monotonic(),
                 last_used_at=time.monotonic(),
             )
+            if model_type is ModelType.TABFM:
+                self._hot.tabfm_task_type = task_type
             self._ensure_sweeper()
             return instance
 
@@ -144,37 +146,44 @@ class ModelManager:
             else:
                 need_load = True
 
-        # Load outside the lock — get_model acquires the lock internally and
-        # _load_tabfm_locked uses asyncio.to_thread which must not run under lock.
+        # Load outside this lock block — get_model acquires the lock internally.
+        # asyncio.to_thread prevents blocking the event loop, but the lock is
+        # still held inside get_model to serialize concurrent model loads.
         if need_load:
             model = await self.get_model(ModelType.TABFM, task_type=task_type)
         else:
             model = self._hot.instance  # type: ignore[union-attr]
 
-        # Build and cache the estimator under the lock.
-        async with self._lock:
-            if self._hot is None or self._hot.model_type != ModelType.TABFM:
-                raise RuntimeError("TabFM unexpectedly evicted mid-call")
-            self._hot.last_used_at = time.monotonic()
-            self._hot.tabfm_task_type = task_type
-            if task_type == "classification":
-                if self._hot.clf is None:
-                    from tabfm import TabFMClassifier
-                    self._hot.clf = TabFMClassifier(
-                        model=model, n_estimators=8, batch_size=8,
-                        max_num_rows=256,
-                    )
-                return self._hot.clf
-            elif task_type == "regression":
-                if self._hot.reg is None:
-                    from tabfm import TabFMRegressor
-                    self._hot.reg = TabFMRegressor(
-                        model=model, n_estimators=8, batch_size=8,
-                        max_num_rows=256,
-                    )
-                return self._hot.reg
-            else:
-                raise ValueError(f"Unknown task_type: {task_type!r}")
+        # Build and cache the estimator. Retry if the model was evicted
+        # between the load and this block (the sweeper runs every 5s).
+        for _attempt in range(3):
+            async with self._lock:
+                if self._hot is not None and self._hot.model_type == ModelType.TABFM \
+                        and self._hot.tabfm_task_type == task_type:
+                    self._hot.last_used_at = time.monotonic()
+                    if task_type == "classification":
+                        if self._hot.clf is None:
+                            from tabfm import TabFMClassifier
+                            self._hot.clf = TabFMClassifier(
+                                model=self._hot.instance, n_estimators=8,
+                                batch_size=8, max_num_rows=256,
+                            )
+                        return self._hot.clf
+                    elif task_type == "regression":
+                        if self._hot.reg is None:
+                            from tabfm import TabFMRegressor
+                            self._hot.reg = TabFMRegressor(
+                                model=self._hot.instance, n_estimators=8,
+                                batch_size=8, max_num_rows=256,
+                            )
+                        return self._hot.reg
+                    else:
+                        raise ValueError(f"Unknown task_type: {task_type!r}")
+            # Model was evicted between the load and the lock — reload.
+            logger.warning("TabFM evicted mid-call, retrying (attempt %d)...", _attempt + 1)
+            model = await self.get_model(ModelType.TABFM, task_type=task_type)
+
+        raise RuntimeError("TabFM unexpectedly evicted after 3 retry attempts")
 
     async def purge(self) -> None:
         """Force-evict the current hot model immediately."""

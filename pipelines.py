@@ -5,8 +5,10 @@ Responsibilities:
   * Temporal downsampler for TimesFM: if a univariate time series exceeds the
     1,024 context window, aggregate it to a lower frequency so the model
     never receives more tokens than its context window.
-  * Tabular ensemble batcher for TabFM: slice arbitrarily large CSVs into
-    1,000-row blocks so that in-context learning never OOMs the GPU.
+  * Tabular ensemble batcher for TabFM: slice CSVs into 1,000-row
+    blocks so that in-context learning never OOMs the GPU. Note: the full
+    DataFrame is loaded into host RAM before chunking — this prevents GPU
+    OOM but very large files (>1M rows) may exhaust host memory.
   * Provide thin convenience wrappers that turn a CSV file path + column name
     into the numpy / pandas structures the two models expect.
 """
@@ -34,18 +36,20 @@ TABFM_IN_CONTEXT_SIZE = 512
 SUPPORTED_EXTENSIONS = {".csv", ".xls", ".xlsx", ".json", ".jsonl"}
 
 
-def _read_tabular_file(file_path: str) -> pd.DataFrame:
+def _read_tabular_file(file_path: str, nrows: int | None = None) -> pd.DataFrame:
     """Read a CSV, Excel (.xls/.xlsx), or JSON file into a pandas DataFrame.
 
     The format is detected by the file extension.
+    If *nrows* is given, only the first *nrows* rows are read (CSV/Excel only;
+    JSON formats are always read in full).
     """
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
-        return pd.read_csv(file_path)
+        return pd.read_csv(file_path, nrows=nrows)
     elif ext in (".xls", ".xlsx"):
         # openpyxl for .xlsx, xlrd for legacy .xls
         engine = "xlrd" if ext == ".xls" else None
-        return pd.read_excel(file_path, engine=engine)
+        return pd.read_excel(file_path, engine=engine, nrows=nrows)
     elif ext == ".json":
         # JSON can be array of objects or nested — try records first
         try:

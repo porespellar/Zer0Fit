@@ -261,6 +261,7 @@ codex exec "Use zer0fit to inspect the data and classify the species."
 | `ZER0FIT_UPLOAD_TTL_HOURS` | `6` | Hours before auto-deleting uploaded files |
 | `ZER0FIT_LOG_LEVEL` | `INFO` | Python logging level |
 | `ZER0FIT_UPLOAD_DIR` | `/app/data/uploads` | Directory for uploaded files |
+| `ZER0FIT_WEBUI_DIR` | `/app/webui_data/uploads` | Open WebUI uploads directory for file ID resolution |
 
 ---
 

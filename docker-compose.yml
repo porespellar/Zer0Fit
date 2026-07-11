@@ -19,6 +19,7 @@ services:
     environment:
       - ZER0FIT_VRAM_TTL=${ZER0FIT_VRAM_TTL:-300}
       - ZER0FIT_UPLOAD_TTL_HOURS=${ZER0FIT_UPLOAD_TTL_HOURS:-6}
+      - ZER0FIT_WEBUI_DIR=${ZER0FIT_WEBUI_DIR:-/app/webui_data/uploads}
     ports:
       - "${ZER0FIT_PORT:-8002}:8002"
     restart: unless-stopped
