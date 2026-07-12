@@ -365,8 +365,9 @@ def _resolve_to_path(
       1. *file_path* — delegates to ``_resolve_path()`` for disk lookups.
       2. *file_data* — writes the raw CSV/text content to a temp file
          in ``UPLOAD_DIR`` and returns its path.  The temp file is named
-         with a UUID prefix so concurrent callers don't collide.  The
-         normal TTL cleanup handles eventual deletion.
+         with a UUID prefix so concurrent callers don't collide.  Stale
+         temp files are cleaned up via ``_cleanup_uploads()`` each time
+         a new inline file is written.
 
     Exactly one of *file_path* or *file_data* must be provided.
     """
@@ -390,7 +391,22 @@ def _resolve_to_path(
                 f"(received {len(stripped)} chars, no commas/tabs found). "
                 f"Pass the raw file contents as a string, not a file path or ID."
             )
+
+        # Enforce the same size limit as zer0fit_upload_csv — prevents
+        # unbounded memory/disk usage from oversized inline payloads.
+        MAX_INLINE_BYTES = int(os.environ.get("ZER0FIT_MAX_UPLOAD_MB", "50")) * 1024 * 1024
+        if len(file_data) > MAX_INLINE_BYTES:
+            raise ValueError(
+                f"file_data is too large ({len(file_data) // (1024*1024)}MB). "
+                f"Maximum is {MAX_INLINE_BYTES // (1024*1024)}MB. "
+                f"Upload large files via zer0fit_upload_csv instead."
+            )
+
         os.makedirs(UPLOAD_DIR, exist_ok=True)
+        # Stale-cleanup before writing: removes expired temp files from
+        # previous calls that used file_data or file uploads.  Runs
+        # synchronously — it's a fast directory scan + stat + remove.
+        _cleanup_uploads()
         safe_name = os.path.basename(file_name) or "data.csv"
         stored = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{safe_name}")
         with open(stored, "w") as f:
