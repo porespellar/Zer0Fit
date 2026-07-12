@@ -20,6 +20,13 @@ x-zer0fit-common: &zer0fit-common
   volumes:
     # Mount sample data directory (optional — files can be uploaded via chat)
     - ./data:/app/data
+    # Hugging Face model cache — persists downloaded weights (~1.5GB/model)
+    # across container recreation and image rebuilds. Defaults to a named
+    # volume; set ZER0FIT_HF_CACHE to an absolute path (e.g. your host's
+    # ~/.cache/huggingface) to reuse an existing cache instead of
+    # re-downloading weights. NOTE: a host bind must be writable by the
+    # container user — if UIDs differ, also set `user:` in an override file.
+    - ${ZER0FIT_HF_CACHE:-hf-cache}:/app/.cache/huggingface
     # Open WebUI uploads volume (OPTIONAL — only needed for file ID resolution
     # when Zer0Fit and Open WebUI run on the same Docker host).
     # Uncomment the line below and ensure the 'open-webui' named volume exists:
@@ -76,3 +83,7 @@ services:
       - "${RENDER_GID:-992}"
     profiles:
       - gpu-rocm
+
+volumes:
+  # Named volume backing the default Hugging Face cache mount above.
+  hf-cache:

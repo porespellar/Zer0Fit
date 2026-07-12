@@ -31,3 +31,6 @@ data/uploads/
 
 # OS artifacts
 Thumbs.db
+# Machine-specific compose overrides
+docker-compose.override.yml
+compose.override.yml
