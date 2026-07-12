@@ -79,9 +79,14 @@ ok "Compose: $($COMPOSE_CMD version 2>/dev/null | head -1)"
 GPU_VENDOR=""
 GPU_NAME=""
 
+# NOTE: nvidia-smi prints its "couldn't communicate with the NVIDIA driver"
+# failure message to STDOUT, so a non-empty capture is not proof of a GPU —
+# gate on the exit code (a stale nvidia-smi binary on an AMD box would
+# otherwise be misdetected as an NVIDIA GPU).
 if command -v nvidia-smi &>/dev/null; then
-    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
-    if [[ -n "$GPU_NAME" ]]; then
+    if NVSMI_OUT=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null) \
+       && [[ -n "$NVSMI_OUT" ]]; then
+        GPU_NAME=$(echo "$NVSMI_OUT" | head -1)
         GPU_VENDOR="nvidia"
     fi
 fi
