@@ -6,7 +6,7 @@
 
 Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v1.0.0** (tabular classification/regression) foundation models to AI assistants via the Model Context Protocol (SSE/Streamable HTTP).
 
-**Zero-shot means no training required** — just attach a CSV and describe what you want to predict. No ML expertise, no hyperparameter tuning, no feature engineering.
+Zero-shot means no training required — just connect the MCP to a chat client / harness + LLM of your choice, attach a CSV, and describe what you want to predict. No ML expertise, no hyperparameter tuning, no feature engineering.
 
 > ⚠️ **Disclaimer — Use at Your Own Risk**
 >
