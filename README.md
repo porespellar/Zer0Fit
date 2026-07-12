@@ -8,6 +8,10 @@ Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v
 
 Zero-shot means no training required — just connect the MCP to a chat client / harness + LLM of your choice, attach a CSV, and describe what you want to predict. No ML expertise, no hyperparameter tuning, no feature engineering.
 
+<p align="center">
+  <img src="images/OWUI_example.png" alt="Zer0Fit tools in Open WebUI — zer0fit_inspect, zer0fit_forecast, and zer0fit_tabular discovered as MCP tools" width="90%">
+</p>
+
 > ⚠️ **Disclaimer — Use at Your Own Risk**
 >
 > Zer0Fit is provided **"AS IS"** without warranties of any kind, and is intended for **research and educational purposes only**. The developer is not responsible for the accuracy of predictions, classifications, or forecasts produced by the underlying models or the LLM interpreting them. This software must not be used as a basis for financial, medical, legal, safety-critical, or employment decisions. **TabFM model weights are non-commercial** — see the full [Disclaimer](DISCLAIMER.md).
