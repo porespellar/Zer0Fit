@@ -37,34 +37,37 @@ Zero-shot means no training required — just connect the MCP to a chat client /
 | **Privacy & security** | UUID-based filenames prevent cross-user file discovery; no data sent to third parties |
 | **VRAM management** | TTL-based auto-unload, mutual exclusion (one model hot at a time) |
 | **Multi-architecture** | ARM64 (DGX Spark / Blackwell) and x86_64 (RTX 3090 / H100) |
-| **One-command install** | `./install.sh` detects architecture, configures, builds, and launches |
+| **NVIDIA + AMD GPUs** | CUDA and ROCm/HIP — same codebase, `torch.cuda.*` routes to HIP on AMD (tested on RX 7700S) |
+| **One-command install** | `./install.sh` detects architecture + GPU vendor, configures, builds, and launches |
 | **MCP Streamable HTTP + SSE** | Compatible with Open WebUI 0.5+ and 0.10+ transport modes |
 
 ---
 
 ## Prerequisites
 
-Before running `install.sh`, you need a Linux server with an NVIDIA GPU and Docker set up. The installer will check for these and exit with an error if any are missing.
+Before running `install.sh`, you need a Linux server with an NVIDIA or AMD GPU and Docker set up. The installer detects the GPU vendor and will check for these prerequisites, exiting with an error if any are missing.
 
 ### Hardware
 
 | Requirement | Minimum | Notes |
 |---|---|---|
 | **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
+| **AMD GPU** | 8GB VRAM | Tested on Radeon RX 7700S (8GB, RDNA3/gfx1102); TabFM loads in ~3.3GB bf16 |
 | **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
-| **Disk** | 20GB free | Docker image + model weights (~1.5GB each) |
+| **Disk** | 20GB free (NVIDIA) / 40GB free (AMD) | Docker image + model weights (~1.5GB each); the ROCm torch wheels bundle the HIP userspace and are significantly larger |
 
 ### Software
 
 | Requirement | Version | Install Guide |
 |---|---|---|
 | **OS** | Ubuntu 24.04 (x86_64 or ARM64) | — |
-| **NVIDIA Driver** | 545+ (x86_64) / 570+ (ARM64) | [NVIDIA Driver Downloads](https://www.nvidia.com/Download/index.aspx) |
+| **NVIDIA Driver** (NVIDIA only) | 545+ (x86_64) / 570+ (ARM64) | [NVIDIA Driver Downloads](https://www.nvidia.com/Download/index.aspx) |
+| **AMD driver** (AMD only) | `amdgpu` kernel driver exposing `/dev/kfd` | In-tree on modern kernels — no ROCm host install needed |
 | **Docker Engine** | 24.0+ | [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) |
 | **Docker Compose** | v2+ | Included with Docker Engine 24+ (`docker compose`) |
-| **NVIDIA Container Toolkit** | Latest | [Install NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+| **NVIDIA Container Toolkit** (NVIDIA only) | Latest | [Install NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
 
-### Verify Your Setup
+### Verify Your Setup — NVIDIA
 
 Run these commands before starting the install. If any fail, install the missing prerequisite using the links above.
 
@@ -87,7 +90,22 @@ docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu24.04 nvidia-smi
 # NVIDIA Container Toolkit is not properly configured
 ```
 
-> **Note:** Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, PyTorch, or Python on the host — only the NVIDIA driver, Docker, and the NVIDIA Container Toolkit. The Docker image includes everything else.
+### Verify Your Setup — AMD ROCm
+
+No container toolkit and no host ROCm install are required — the PyTorch ROCm wheels inside the image bundle the entire HIP userspace. The host only needs the `amdgpu` kernel driver and Docker.
+
+```bash
+# 1. Verify the amdgpu compute interface exists
+ls -l /dev/kfd /dev/dri/renderD*
+# /dev/kfd and at least one renderD node should be listed
+
+# 2. Verify Docker + Compose (same as NVIDIA steps 2-3)
+docker --version && docker compose version
+```
+
+> **GPUs not in the ROCm kernel bundle** (e.g. gfx1103 RDNA3 APUs) need `HSA_OVERRIDE_GFX_VERSION` — the installer auto-detects the gfx1103 case and sets `11.0.0`; for other GPUs export it before running `install.sh` and it will be written into `.env`.
+
+> **Note:** Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, ROCm, PyTorch, or Python on the host — only the GPU kernel driver, Docker, and (NVIDIA only) the Container Toolkit. The Docker image includes everything else.
 
 ---
 
@@ -101,7 +119,14 @@ cd Zer0Fit
 ./install.sh
 ```
 
-The installer detects your architecture (ARM64 or x86_64), selects the correct CUDA base image and PyTorch wheels, builds the Docker container, and launches the server.
+The installer detects your architecture (ARM64 or x86_64) and GPU vendor (NVIDIA or AMD), selects the correct base image and PyTorch wheels (CUDA or ROCm), builds the Docker container, and launches the server.
+
+For AMD GPUs the container is started under the `gpu-rocm` compose profile, which maps `/dev/kfd` + `/dev/dri` into the container instead of using the NVIDIA runtime:
+
+```bash
+docker compose --profile gpu-rocm up -d    # AMD (install.sh selects this automatically)
+docker compose --profile gpu up -d         # NVIDIA
+```
 
 ### 2. Connect to Open WebUI
 

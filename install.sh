@@ -2,11 +2,11 @@
 # ============================================================================
 # Zer0Fit MCP — Interactive Installer
 # ============================================================================
-# Detects the host architecture and GPU type, configures the Docker build
-# with the correct CUDA base image and PyTorch wheel index, builds and
-# launches the Zer0Fit container, then downloads model weights to disk
-# cache and loads them into VRAM so the user doesn't experience delays
-# on first use.
+# Detects the host architecture and GPU vendor (NVIDIA CUDA or AMD ROCm),
+# configures the Docker build with the correct base image and PyTorch wheel
+# index, builds and launches the Zer0Fit container, then downloads model
+# weights to disk cache and loads them into VRAM so the user doesn't
+# experience delays on first use.
 #
 # Usage:
 #   ./install.sh              # interactive (menu-driven configuration)
@@ -49,13 +49,13 @@ cd "$SCRIPT_DIR"
 
 info "Working directory: $SCRIPT_DIR"
 
-# Check OS — Zer0Fit requires Linux with NVIDIA CUDA (not macOS)
+# Check OS — Zer0Fit requires Linux with an NVIDIA or AMD GPU (not macOS)
 OS_NAME="$(uname -s)"
 if [[ "$OS_NAME" == "Darwin" ]]; then
-    error "macOS is not supported. Zer0Fit requires NVIDIA CUDA (Linux/x86_64 or Linux/ARM64).\n  Deploy on an Ubuntu 24.04 server with an NVIDIA GPU."
+    error "macOS is not supported. Zer0Fit requires Linux with an NVIDIA (CUDA) or AMD (ROCm) GPU.\n  Deploy on an Ubuntu 24.04 server."
 fi
 if [[ "$OS_NAME" != "Linux" ]]; then
-    error "Unsupported OS: $OS_NAME. Zer0Fit requires Linux with NVIDIA CUDA."
+    error "Unsupported OS: $OS_NAME. Zer0Fit requires Linux with an NVIDIA or AMD GPU."
 fi
 ok "Operating system: $OS_NAME"
 
@@ -75,47 +75,120 @@ fi
 ok "Docker: $(docker --version)"
 ok "Compose: $($COMPOSE_CMD version 2>/dev/null | head -1)"
 
-# Check NVIDIA Container Toolkit
-if ! command -v nvidia-ctk &>/dev/null && ! docker info 2>/dev/null | grep -q "nvidia"; then
-    error "NVIDIA Container Toolkit not detected. Zer0Fit requires an NVIDIA GPU.\n  Install it: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
-fi
-ok "NVIDIA Container Toolkit detected"
+# ── GPU vendor detection (NVIDIA CUDA or AMD ROCm) ────────────────────────
+GPU_VENDOR=""
+GPU_NAME=""
 
-# Verify a CUDA device is actually present
-if ! command -v nvidia-smi &>/dev/null; then
-    error "nvidia-smi not found. No NVIDIA GPU detected on this host.\n  Zer0Fit requires an NVIDIA GPU with at least 16GB VRAM."
+if command -v nvidia-smi &>/dev/null; then
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
+    if [[ -n "$GPU_NAME" ]]; then
+        GPU_VENDOR="nvidia"
+    fi
 fi
-GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
-if [[ -z "$GPU_NAME" ]]; then
-    error "nvidia-smi did not return a GPU. No NVIDIA GPU detected.\n  Zer0Fit requires an NVIDIA GPU with at least 16GB VRAM."
+
+if [[ -z "$GPU_VENDOR" && -e /dev/kfd ]]; then
+    # /dev/kfd is the amdgpu kernel compute interface — its presence means
+    # the host driver is loaded and ROCm compute is available.
+    GPU_VENDOR="amd"
+    # Best-effort GPU name: rocm-smi if the host has ROCm tools, lspci fallback.
+    if command -v rocm-smi &>/dev/null; then
+        GPU_NAME=$(rocm-smi --showproductname 2>/dev/null \
+            | grep -im1 "Card Series\|Card Model" | sed 's/.*:[[:space:]]*//' || echo "")
+    fi
+    if [[ -z "$GPU_NAME" ]] && command -v lspci &>/dev/null; then
+        GPU_NAME=$(lspci 2>/dev/null | grep -iE "VGA|Display|3D" | grep -i "AMD" \
+            | head -1 | sed 's/.*: //' || echo "")
+    fi
+    GPU_NAME="${GPU_NAME:-AMD GPU (name unavailable)}"
 fi
-ok "GPU: $GPU_NAME"
+
+if [[ -z "$GPU_VENDOR" ]]; then
+    error "No supported GPU detected.\n  NVIDIA: nvidia-smi must report a GPU.\n  AMD: /dev/kfd must exist (amdgpu kernel driver with ROCm compute).\n  Zer0Fit requires an NVIDIA or AMD GPU."
+fi
+
+if [[ "$GPU_VENDOR" == "nvidia" ]]; then
+    # Check NVIDIA Container Toolkit — required so Docker can pass the GPU.
+    if ! command -v nvidia-ctk &>/dev/null && ! docker info 2>/dev/null | grep -q "nvidia"; then
+        error "NVIDIA Container Toolkit not detected.\n  Install it: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+    fi
+    ok "NVIDIA Container Toolkit detected"
+else
+    # AMD needs no container toolkit — the container gets the GPU via
+    # /dev/kfd + /dev/dri device mappings. Verify the render nodes exist.
+    if ! ls /dev/dri/renderD* &>/dev/null; then
+        error "/dev/dri render nodes not found. The amdgpu driver is not exposing a GPU.\n  Check: ls -l /dev/kfd /dev/dri/"
+    fi
+    ok "AMD ROCm devices present (/dev/kfd + /dev/dri)"
+fi
+ok "GPU: $GPU_NAME ($GPU_VENDOR)"
 
 # ── Architecture detection ────────────────────────────────────────────────
 ARCH=$(uname -m)
 info "Detected architecture: $ARCH"
 
-case "$ARCH" in
-    x86_64|amd64)
-        BUILDARCH="amd64"
-        BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
-        TORCH_INDEX="https://download.pytorch.org/whl/cu124"
-        ARCH_LABEL="x86_64 (CUDA 12.4)"
-        ;;
-    aarch64|arm64)
-        BUILDARCH="arm64"
-        BASE_IMAGE="nvidia/cuda:13.2.0-base-ubuntu24.04"
-        TORCH_INDEX="https://download.pytorch.org/whl/nightly/cu130"
-        ARCH_LABEL="ARM64 (CUDA 13.2 / Blackwell)"
-        ;;
-    *)
-        warn "Unknown architecture: $ARCH. Defaulting to x86_64."
-        BUILDARCH="amd64"
-        BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
-        TORCH_INDEX="https://download.pytorch.org/whl/cu124"
-        ARCH_LABEL="x86_64 (CUDA 12.4) [fallback]"
-        ;;
-esac
+# Vendor + architecture routing matrix.
+# AMD: the ROCm torch wheels bundle the full HIP userspace, so a plain
+# Ubuntu base image is enough — no ROCm base image, no container toolkit.
+COMPOSE_PROFILE="gpu"
+VIDEO_GID=""
+RENDER_GID=""
+
+if [[ "$GPU_VENDOR" == "amd" ]]; then
+    case "$ARCH" in
+        x86_64|amd64) ;;
+        *) error "AMD ROCm wheels are only published for x86_64 (got: $ARCH)." ;;
+    esac
+    BUILDARCH="amd64"
+    BASE_IMAGE="ubuntu:24.04"
+    TORCH_INDEX="https://download.pytorch.org/whl/rocm7.2"
+    ARCH_LABEL="x86_64 (ROCm 7.2 / HIP)"
+    COMPOSE_PROFILE="gpu-rocm"
+
+    # The container process needs the host GIDs that own /dev/dri/renderD*
+    # (render) and /dev/dri/card* (video) — docker-compose adds them via
+    # group_add. These GIDs vary between distros, so detect them here.
+    VIDEO_GID=$(getent group video | cut -d: -f3 || true)
+    RENDER_GID=$(getent group render | cut -d: -f3 || true)
+    VIDEO_GID="${VIDEO_GID:-44}"
+    RENDER_GID="${RENDER_GID:-992}"
+    ok "Host GPU group GIDs: video=$VIDEO_GID render=$RENDER_GID"
+
+    # HSA_OVERRIDE_GFX_VERSION: needed for GPUs missing from the ROCm kernel
+    # bundle (e.g. gfx1103 RDNA3 APUs must masquerade as gfx1100 / "11.0.0").
+    # Respect an explicit user export; otherwise auto-detect the known case.
+    HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-}"
+    if [[ -z "$HSA_OVERRIDE_GFX_VERSION" ]] && command -v rocminfo &>/dev/null; then
+        GFX_ARCH=$(rocminfo 2>/dev/null | grep -om1 'gfx[0-9a-f]*' || echo "")
+        if [[ "$GFX_ARCH" == "gfx1103" ]]; then
+            HSA_OVERRIDE_GFX_VERSION="11.0.0"
+            warn "gfx1103 APU detected — setting HSA_OVERRIDE_GFX_VERSION=11.0.0 (required for ROCm BLAS)"
+        elif [[ -n "$GFX_ARCH" ]]; then
+            info "GPU gfx arch: $GFX_ARCH"
+        fi
+    fi
+else
+    case "$ARCH" in
+        x86_64|amd64)
+            BUILDARCH="amd64"
+            BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
+            TORCH_INDEX="https://download.pytorch.org/whl/cu124"
+            ARCH_LABEL="x86_64 (CUDA 12.4)"
+            ;;
+        aarch64|arm64)
+            BUILDARCH="arm64"
+            BASE_IMAGE="nvidia/cuda:13.2.0-base-ubuntu24.04"
+            TORCH_INDEX="https://download.pytorch.org/whl/nightly/cu130"
+            ARCH_LABEL="ARM64 (CUDA 13.2 / Blackwell)"
+            ;;
+        *)
+            warn "Unknown architecture: $ARCH. Defaulting to x86_64."
+            BUILDARCH="amd64"
+            BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
+            TORCH_INDEX="https://download.pytorch.org/whl/cu124"
+            ARCH_LABEL="x86_64 (CUDA 12.4) [fallback]"
+            ;;
+    esac
+fi
 ok "Target: $ARCH_LABEL"
 
 # ── Configuration ─────────────────────────────────────────────────────────
@@ -220,6 +293,7 @@ if $INTERACTIVE; then
 fi
 
 info "Configuration:"
+info "  GPU vendor:      $GPU_VENDOR"
 info "  Architecture:    $ARCH_LABEL"
 info "  Base image:      $BASE_IMAGE"
 info "  VRAM TTL:        ${ZER0FIT_VRAM_TTL}s"
@@ -232,7 +306,9 @@ info "  TabFM git ref:   $TABFM_REF"
 ENV_FILE="$SCRIPT_DIR/.env"
 cat > "$ENV_FILE" << EOF
 # Zer0Fit configuration — auto-generated by install.sh
+# GPU vendor: $GPU_VENDOR
 # Architecture: $ARCH_LABEL
+# Compose profile: $COMPOSE_PROFILE
 # Generated: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
 
 BUILDARCH=$BUILDARCH
@@ -246,6 +322,19 @@ ZER0FIT_WEBUI_DIR=/app/webui_data/uploads
 ZER0FIT_DEBUG=false
 TABFM_REF=$TABFM_REF
 EOF
+
+if [[ "$GPU_VENDOR" == "amd" ]]; then
+    cat >> "$ENV_FILE" << EOF
+
+# AMD ROCm runtime settings (used by the gpu-rocm compose profile)
+VIDEO_GID=$VIDEO_GID
+RENDER_GID=$RENDER_GID
+# gfx override for GPUs missing from the ROCm kernel bundle (empty = unset)
+HSA_OVERRIDE_GFX_VERSION=$HSA_OVERRIDE_GFX_VERSION
+# Select a specific GPU on multi-GPU hosts, e.g. 0 (empty = all)
+HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-}
+EOF
+fi
 ok ".env file written to $ENV_FILE"
 
 # ── Create data directory if it doesn't exist ─────────────────────────────
@@ -257,7 +346,7 @@ echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD} Ready to build and deploy:${NC}"
 echo -e "  • Zer0Fit MCP Server v${ZER0FIT_VERSION}"
-echo -e "  • CUDA base image: $BASE_IMAGE"
+echo -e "  • Base image: $BASE_IMAGE ($GPU_VENDOR)"
 echo -e "  • PyTorch (pre-built, $ARCH_LABEL)"
 echo -e "  • TimesFM 2.5 (200M params) — weights downloaded to cache after build"
 echo -e "  • TabFM v1.0.0 — weights downloaded to cache after build"
@@ -282,7 +371,7 @@ info "Building Docker image (this may take 5-10 minutes on first run)..."
 echo ""
 
 # Build first, then start detached so the script can verify health.
-$COMPOSE_CMD --profile gpu build 2>&1 | while IFS= read -r line; do
+$COMPOSE_CMD --profile "$COMPOSE_PROFILE" build 2>&1 | while IFS= read -r line; do
     if [[ "$line" =~ ^#[0-9]+\ [0-9]+\. ]] || \
        [[ "$line" =~ \ Built\ $ ]] || \
        [[ "$line" =~ (Building|Downloading|Installing) ]]; then
@@ -293,7 +382,7 @@ $COMPOSE_CMD --profile gpu build 2>&1 | while IFS= read -r line; do
 done
 
 info "Starting container (detached)..."
-$COMPOSE_CMD --profile gpu up -d 2>&1
+$COMPOSE_CMD --profile "$COMPOSE_PROFILE" up -d 2>&1
 
 # ── Verify server is running ──────────────────────────────────────────────
 echo ""
@@ -313,7 +402,7 @@ done
 
 if ! curl -sf "$HEALTH_URL" &>/dev/null; then
     warn "Server did not respond at $HEALTH_URL after 30 seconds."
-    warn "Check logs: $COMPOSE_CMD --profile gpu logs"
+    warn "Check logs: $COMPOSE_CMD --profile $COMPOSE_PROFILE logs"
     warn "You can re-run the model download later with: ./install.sh --preload"
     exit 1
 fi
@@ -342,7 +431,7 @@ echo "    Downloading from huggingface.co → disk cache, then loading into VRAM
 PRELOAD_URL="http://127.0.0.1:$ZER0FIT_PORT/preload"
 
 # Stream container logs in background so user sees download progress
-$COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 \
+$COMPOSE_CMD --profile "$COMPOSE_PROFILE" logs -f --since 0s 2>&1 \
     | grep -i -E "(timesfm|download|loading|huggingface|model)" &
 LOG_PID=$!
 
@@ -368,7 +457,7 @@ echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0 weights..."
 echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 
 # Stream logs again for TabFM download
-$COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 \
+$COMPOSE_CMD --profile "$COMPOSE_PROFILE" logs -f --since 0s 2>&1 \
     | grep -i -E "(tabfm|download|loading|huggingface|model)" &
 LOG_PID=$!
 
@@ -444,9 +533,9 @@ echo "  2. Connect Open WebUI to the MCP endpoint (see docs/DEPLOYMENT_GUIDE.md)
 echo "  3. Install the Zer0Fit skill from: openwebui/skill_content.md"
 echo ""
 echo -e "${BOLD}  Useful commands:${NC}"
-echo "  $COMPOSE_CMD --profile gpu logs -f     # View logs"
-echo "  $COMPOSE_CMD --profile gpu down         # Stop server"
-echo "  $COMPOSE_CMD --profile gpu up -d        # Start (detached)"
+echo "  $COMPOSE_CMD --profile $COMPOSE_PROFILE logs -f     # View logs"
+echo "  $COMPOSE_CMD --profile $COMPOSE_PROFILE down         # Stop server"
+echo "  $COMPOSE_CMD --profile $COMPOSE_PROFILE up -d        # Start (detached)"
 echo "  curl $HEALTH_URL                         # Health check"
 echo "  curl -X POST $PRELOAD_URL                # Re-download/cache model weights"
 echo ""

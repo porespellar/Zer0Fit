@@ -172,12 +172,14 @@ For very large files, the full DataFrame is loaded into host RAM before chunking
 
 ## 4. Hardware Matrix
 
-| Component | x86_64 (CUDA 12.4) | ARM64 (CUDA 13.2 / cu130 wheels) |
-|---|---|---|
-| Base image | `nvidia/cuda:12.4.1-base-ubuntu24.04` | `nvidia/cuda:13.2.0-base-ubuntu24.04` |
-| Torch index | `download.pytorch.org/whl/cu124` | `download.pytorch.org/whl/nightly/cu130` |
-| Torch channel | stable | nightly (pre) |
-| TabFM backend | `tabfm_v1_0_0_pytorch` | `tabfm_v1_0_0_pytorch` |
-| TimesFM backend | `TimesFM_2p5_200M_torch` | `TimesFM_2p5_200M_torch` |
+| Component | x86_64 NVIDIA (CUDA 12.4) | ARM64 NVIDIA (CUDA 13.2 / cu130 wheels) | x86_64 AMD (ROCm 7.2 / HIP) |
+|---|---|---|---|
+| Base image | `nvidia/cuda:12.4.1-base-ubuntu24.04` | `nvidia/cuda:13.2.0-base-ubuntu24.04` | `ubuntu:24.04` |
+| Torch index | `download.pytorch.org/whl/cu124` | `download.pytorch.org/whl/nightly/cu130` | `download.pytorch.org/whl/rocm7.2` |
+| Torch channel | stable | nightly (pre) | stable |
+| GPU access | NVIDIA Container Toolkit | NVIDIA Container Toolkit | `/dev/kfd` + `/dev/dri` device mapping |
+| Compose profile | `gpu` | `gpu` | `gpu-rocm` |
+| TabFM backend | `tabfm_v1_0_0_pytorch` | `tabfm_v1_0_0_pytorch` | `tabfm_v1_0_0_pytorch` |
+| TimesFM backend | `TimesFM_2p5_200M_torch` | `TimesFM_2p5_200M_torch` | `TimesFM_2p5_200M_torch` |
 
-The Dockerfile `TARGETARCH` routing matrix selects the correct wheel set at build time. No code changes are needed between architectures.
+The Dockerfile `TARGETARCH`/`TORCH_INDEX` routing matrix selects the correct wheel set at build time. No code changes are needed between architectures or GPU vendors — PyTorch's ROCm wheels are HIP-ified at the kernel level, so `torch.cuda.*` calls route to HIP at runtime and the AMD GPU appears as `cuda:0`. The only ROCm-specific code is environment hygiene in `model_manager.py`: an empty-but-set `HSA_OVERRIDE_GFX_VERSION` or `HIP_VISIBLE_DEVICES` breaks ROCm device discovery, so empty values are stripped before torch is first imported.

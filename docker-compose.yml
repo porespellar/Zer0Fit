@@ -1,30 +1,47 @@
+# Zer0Fit — two GPU runtime profiles sharing one build:
+#
+#   docker compose --profile gpu up -d        # NVIDIA CUDA (default)
+#   docker compose --profile gpu-rocm up -d   # AMD ROCm/HIP
+#
+# install.sh detects the GPU vendor and selects the profile automatically.
+# Both services share the same container name and port, so only one profile
+# can run at a time.
+
+x-zer0fit-common: &zer0fit-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      TARGETARCH: ${BUILDARCH:-amd64}
+      BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:12.4.1-base-ubuntu24.04}
+      TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
+      TABFM_REF: ${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}
+  container_name: zer0fit_mcp_server
+  volumes:
+    # Mount sample data directory (optional — files can be uploaded via chat)
+    - ./data:/app/data
+    # Open WebUI uploads volume (OPTIONAL — only needed for file ID resolution
+    # when Zer0Fit and Open WebUI run on the same Docker host).
+    # Uncomment the line below and ensure the 'open-webui' named volume exists:
+    # - open-webui:/app/webui_data:ro
+  ports:
+    - "${ZER0FIT_PORT:-8002}:8002"
+  restart: unless-stopped
+
+x-zer0fit-env: &zer0fit-env
+  ZER0FIT_VRAM_TTL: ${ZER0FIT_VRAM_TTL:-300}
+  ZER0FIT_UPLOAD_TTL_HOURS: ${ZER0FIT_UPLOAD_TTL_HOURS:-6}
+  ZER0FIT_WEBUI_DIR: ${ZER0FIT_WEBUI_DIR:-/app/webui_data/uploads}
+  ZER0FIT_MAX_UPLOAD_MB: ${ZER0FIT_MAX_UPLOAD_MB:-50}
+  ZER0FIT_DEBUG: ${ZER0FIT_DEBUG:-false}
+
 services:
+  # ── NVIDIA CUDA ─────────────────────────────────────────────────────────
+  # Requires the NVIDIA Container Toolkit on the host.
   zer0fit-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        TARGETARCH: ${BUILDARCH:-amd64}
-        BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:12.4.1-base-ubuntu24.04}
-        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
-        TABFM_REF: ${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}
-    container_name: zer0fit_mcp_server
-    volumes:
-      # Mount sample data directory (optional — files can be uploaded via chat)
-      - ./data:/app/data
-      # Open WebUI uploads volume (OPTIONAL — only needed for file ID resolution
-      # when Zer0Fit and Open WebUI run on the same Docker host).
-      # Uncomment the line below and ensure the 'open-webui' named volume exists:
-      # - open-webui:/app/webui_data:ro
+    <<: *zer0fit-common
     environment:
-      - ZER0FIT_VRAM_TTL=${ZER0FIT_VRAM_TTL:-300}
-      - ZER0FIT_UPLOAD_TTL_HOURS=${ZER0FIT_UPLOAD_TTL_HOURS:-6}
-      - ZER0FIT_WEBUI_DIR=${ZER0FIT_WEBUI_DIR:-/app/webui_data/uploads}
-      - ZER0FIT_MAX_UPLOAD_MB=${ZER0FIT_MAX_UPLOAD_MB:-50}
-      - ZER0FIT_DEBUG=${ZER0FIT_DEBUG:-false}
-    ports:
-      - "${ZER0FIT_PORT:-8002}:8002"
-    restart: unless-stopped
+      <<: *zer0fit-env
     profiles:
       - gpu
     deploy:
@@ -34,3 +51,28 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # ── AMD ROCm / HIP ──────────────────────────────────────────────────────
+  # No container toolkit needed — the PyTorch ROCm wheels bundle the HIP
+  # userspace; the host only needs the amdgpu kernel driver. The container
+  # accesses the GPU through /dev/kfd (compute) and /dev/dri (render nodes),
+  # which are owned by the host's `render` and `video` groups — install.sh
+  # detects the host GIDs and writes VIDEO_GID / RENDER_GID to .env.
+  zer0fit-mcp-rocm:
+    <<: *zer0fit-common
+    environment:
+      <<: *zer0fit-env
+      # gfx override for GPUs missing from the ROCm kernel bundle (e.g.
+      # gfx1103 APUs need "11.0.0"). NOTE: an EMPTY value would break ROCm
+      # device discovery — the server treats empty as unset (model_manager).
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-}
+      # Select a specific GPU on multi-GPU hosts (e.g. "0"). Empty = all.
+      HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-}
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    profiles:
+      - gpu-rocm

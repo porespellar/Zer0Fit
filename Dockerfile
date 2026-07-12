@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1.6
-# Multi-arch build for x86_64 (CUDA 12.4) and ARM64 (CUDA 13.2 Blackwell).
+# Multi-arch / multi-vendor build:
+#   x86_64 NVIDIA — nvidia/cuda:12.4.1-base-ubuntu24.04 + cu124 wheels
+#   ARM64 NVIDIA  — nvidia/cuda:13.2.0-base-ubuntu24.04 + cu130 wheels (Blackwell)
+#   x86_64 AMD    — ubuntu:24.04 + rocm7.2 wheels (the ROCm torch wheels bundle
+#                   the entire HIP userspace, so no ROCm base image is needed;
+#                   the host only provides the amdgpu kernel driver via
+#                   /dev/kfd + /dev/dri, mapped in docker-compose.yml)
 ARG BASE_IMAGE=nvidia/cuda:12.4.1-base-ubuntu24.04
 FROM ${BASE_IMAGE}
 
@@ -12,7 +18,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-dev git curl build-essential && \
+        python3 python3-pip python3-dev git curl build-essential libnuma1 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -33,8 +39,10 @@ RUN git clone https://github.com/google-research/tabfm.git /opt/tabfm && \
 # our numpy <2.0.0 pin for TimesFM compatibility.
 RUN pip3 uninstall -y jax jaxlib 2>/dev/null || true
 
-# Architecture routing matrix — the TORCH_INDEX build arg is passed by
-# docker-compose from the .env file (written by install.sh).
+# Architecture/vendor routing matrix — the TORCH_INDEX build arg is passed
+# by docker-compose from the .env file (written by install.sh). For AMD GPUs
+# install.sh sets TORCH_INDEX to the ROCm wheel index (e.g. .../whl/rocm7.2);
+# no other change is needed — torch.cuda.* routes to HIP at runtime.
 # Falls back to architecture-based detection if TORCH_INDEX is not set.
 ARG TARGETARCH
 ARG TORCH_INDEX=""

@@ -24,12 +24,48 @@ import asyncio
 import gc
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
 logger = logging.getLogger("zer0fit.model_manager")
+
+# ── ROCm/HIP environment hygiene ────────────────────────────────────────────
+# docker-compose passes these through with a default of "" when unset in .env.
+# An EMPTY (but set) HSA_OVERRIDE_GFX_VERSION breaks ROCm device discovery
+# (torch.cuda.is_available() returns False), and an empty HIP_VISIBLE_DEVICES /
+# ROCR_VISIBLE_DEVICES hides every GPU. Treat empty as unset — this must run
+# before torch is first imported (torch imports are lazy, inside the loaders).
+for _var in ("HSA_OVERRIDE_GFX_VERSION", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"):
+    if os.environ.get(_var) == "":
+        del os.environ[_var]
+
+
+def gpu_backend() -> Optional[str]:
+    """Human-readable GPU backend string, or None if torch isn't loaded yet.
+
+    Inspects sys.modules instead of importing torch — importing it here would
+    pull the full framework into RAM on an idle server just to answer /health.
+    The PyTorch ROCm wheels are HIP-ified at the kernel level and expose the
+    GPU through the torch.cuda API, so torch.version.hip is the discriminator.
+    """
+    torch = sys.modules.get("torch")
+    if torch is None:
+        return None
+    try:
+        available = torch.cuda.is_available()
+        device = torch.cuda.get_device_name(0) if available else "no device found"
+        hip = getattr(torch.version, "hip", None)
+        if hip:
+            return f"ROCm/HIP {hip} — {device}"
+        cuda = getattr(torch.version, "cuda", None)
+        if cuda:
+            return f"CUDA {cuda} — {device}"
+        return f"CPU-only torch {torch.__version__}"
+    except Exception as exc:  # pragma: no cover — defensive
+        return f"unknown ({exc})"
 
 
 class ModelType(str, Enum):
@@ -224,6 +260,7 @@ class ModelManager:
         # the (potentially minutes-long) PyTorch model load + compile.
         tfm = await asyncio.to_thread(_load)
         logger.info("TimesFM loaded and compiled successfully.")
+        logger.info("Inference backend: %s", gpu_backend())
         return tfm
 
     async def _load_tabfm_locked(self, task_type: str = "classification") -> Any:
@@ -236,6 +273,7 @@ class ModelManager:
         # Offload to a thread so the async event loop is not blocked.
         model = await asyncio.to_thread(_load)
         logger.info("TabFM base model loaded successfully (task=%s).", task_type)
+        logger.info("Inference backend: %s", gpu_backend())
         return model
 
     async def _evict_locked(self, reason: str) -> None:
@@ -251,15 +289,16 @@ class ModelManager:
         self._hot.clf = None
         self._hot.reg = None
         self._hot = None
-        # Force GC and clear CUDA cache.
+        # Force GC and clear the device cache (torch.cuda.* routes to HIP
+        # on ROCm builds, so this covers both vendors).
         gc.collect()
         try:
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 logger.info("torch.cuda.empty_cache() completed.")
-        except Exception as exc:  # pragma: no cover — CUDA not present
-            logger.debug("CUDA cache clear skipped: %s", exc)
+        except Exception as exc:  # pragma: no cover — no GPU present
+            logger.debug("Device cache clear skipped: %s", exc)
 
     def _ensure_sweeper(self) -> None:
         if self._sweeper_task is None or self._sweeper_task.done():

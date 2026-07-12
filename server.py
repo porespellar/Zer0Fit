@@ -35,7 +35,7 @@ from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from starlette.responses import JSONResponse
 
-from model_manager import ModelManager, ModelType, manager as _mgr
+from model_manager import ModelManager, ModelType, gpu_backend, manager as _mgr
 import pipelines
 
 logging.basicConfig(
@@ -857,6 +857,9 @@ async def health(request):
         "status": "healthy",
         "state": state,
         "active_model": active,
+        # "CUDA 12.4 — ..." or "ROCm/HIP 7.2 — ..."; null until the first
+        # model load (torch is imported lazily to keep the idle server light).
+        "gpu_backend": gpu_backend(),
         "endpoints": {
             "mcp": "/mcp (Streamable HTTP — preferred for Open WebUI 0.10+)",
             "sse": "/sse (SSE — legacy fallback)",
