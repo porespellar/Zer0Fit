@@ -10,6 +10,8 @@ Zero-shot means no training required — just connect the MCP to a chat client /
 
 <p align="center">
   <img src="images/OWUI_example.png" alt="Zer0Fit tools in Open WebUI — zer0fit_inspect, zer0fit_forecast, and zer0fit_tabular discovered as MCP tools" width="90%">
+  <br>
+  <em>(Example output from Open WebUI connected to Zer0Fit MCP processing the iris.csv dataset combined with a user prompt)</em>
 </p>
 
 > ⚠️ **Disclaimer — Use at Your Own Risk**
