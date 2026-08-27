@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # ── Version ────────────────────────────────────────────────────────────────
-ZER0FIT_VERSION="1.0.1"
+ZER0FIT_VERSION="1.1.0"
 
 # ── Colors ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -129,7 +129,7 @@ ZER0FIT_VRAM_TTL="${ZER0FIT_VRAM_TTL:-300}"
 ZER0FIT_PORT="${ZER0FIT_PORT:-8002}"
 ZER0FIT_UPLOAD_TTL_HOURS="${ZER0FIT_UPLOAD_TTL_HOURS:-6}"
 ZER0FIT_MAX_UPLOAD_MB="${ZER0FIT_MAX_UPLOAD_MB:-50}"
-TABFM_REF="${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}"
+TABFM_REF="${TABFM_REF:-fbb665569425fd2f490c6576b3af967876fe11ff}"
 
 if $INTERACTIVE; then
     echo ""

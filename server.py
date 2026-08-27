@@ -837,7 +837,7 @@ async def handle_sse(request):
     async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
         init_options = InitializationOptions(
             server_name="zer0fit-mcp",
-            server_version="1.0.1",
+            server_version="1.1.0",
             capabilities=app_server.get_capabilities(
                 notification_options=NotificationOptions(),
                 experimental_capabilities=None,
@@ -863,7 +863,7 @@ async def health(request):
             "health": "/health",
             "preload": "/preload (POST — download weights to cache + load into VRAM)",
         },
-        "version": "1.0.1",
+        "version": "1.1.0",
     })
 
 

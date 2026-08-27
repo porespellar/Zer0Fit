@@ -5,10 +5,15 @@
 # install.sh for local non-container dev) with its [pytorch] extra and
 # --no-deps so it never overwrites the carefully selected torch wheel.
 
-mcp[cli]>=1.0.0
+# mcp 2.x removed the low-level Server.list_tools()/call_tool() decorator
+# API that server.py uses — capped below 2.0 until the server is migrated.
+mcp[cli]>=1.0.0,<2.0.0
 uvicorn>=0.30.1
 starlette>=0.37.2
-pandas>=2.2.0
+# pandas capped <3.0: pandas 3 flips the default string dtype (object ->
+# str), which changes TabFM label/dtype handling upstream (their own lock
+# pins pandas 2.2.3). Re-test on GPU hardware before removing the cap.
+pandas>=2.2.0,<3.0.0
 scikit-learn>=1.4.0
 accelerate>=0.30.0
 huggingface_hub>=0.24.0

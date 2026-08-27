@@ -21,7 +21,11 @@ WORKDIR /app
 # builds, then install (no deps so it never clobbers the carefully selected
 # torch wheel). We then manually install TabFM's non-torch deps.
 # To update: change TABFM_REF to a newer commit SHA after verifying compatibility.
-ARG TABFM_REF=d8678b6895f1428a468d4cc299c1ff4cf704e726
+# 2026-08-27: moved d8678b6 (tag v1.0.1) -> fbb6655 (23 commits ahead:
+# PyTorch-only import fix without JAX #97, ICL context caching with int8
+# KV-cache, shared hold-out NNLS/calibration #85, dtype + sklearn-pandas
+# fixes). API surface used by model_manager.py is unchanged.
+ARG TABFM_REF=fbb665569425fd2f490c6576b3af967876fe11ff
 RUN git clone https://github.com/google-research/tabfm.git /opt/tabfm && \
     cd /opt/tabfm && git checkout ${TABFM_REF} && \
     pip3 install --no-deps -e /opt/tabfm[pytorch] && \

@@ -7,7 +7,7 @@ services:
         TARGETARCH: ${BUILDARCH:-amd64}
         BASE_IMAGE: ${BASE_IMAGE:-nvidia/cuda:12.4.1-base-ubuntu24.04}
         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
-        TABFM_REF: ${TABFM_REF:-d8678b6895f1428a468d4cc299c1ff4cf704e726}
+        TABFM_REF: ${TABFM_REF:-fbb665569425fd2f490c6576b3af967876fe11ff}
     container_name: zer0fit_mcp_server
     volumes:
       # Mount sample data directory (optional — files can be uploaded via chat)
