@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # ── Version ────────────────────────────────────────────────────────────────
-ZER0FIT_VERSION="1.2.0"
+ZER0FIT_VERSION="1.2.1"
 
 # ── Colors ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -301,6 +301,7 @@ info "Verifying server is running..."
 sleep 5
 
 HEALTH_URL="http://127.0.0.1:$ZER0FIT_PORT/health"
+PRELOAD_URL="http://127.0.0.1:$ZER0FIT_PORT/preload"
 
 # Wait up to 30 seconds for the server to come up
 for i in $(seq 1 6); do
@@ -314,7 +315,7 @@ done
 if ! curl -sf "$HEALTH_URL" &>/dev/null; then
     warn "Server did not respond at $HEALTH_URL after 30 seconds."
     warn "Check logs: $COMPOSE_CMD --profile gpu logs"
-    warn "You can re-run the model download later with: ./install.sh --preload"
+    warn "You can re-run the model download later with: curl -X POST $PRELOAD_URL"
     exit 1
 fi
 
@@ -339,7 +340,6 @@ echo -e "${BLUE}[1/2]${NC} Downloading TimesFM 3.0 weights..."
 echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 # The preload endpoint triggers the download + VRAM load.
 # We also tail the container logs so the user sees download progress.
-PRELOAD_URL="http://127.0.0.1:$ZER0FIT_PORT/preload"
 
 # Stream container logs in background so user sees download progress
 $COMPOSE_CMD --profile gpu logs -f --since 0s 2>&1 \

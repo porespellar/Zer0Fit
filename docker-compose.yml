@@ -16,6 +16,8 @@ services:
       # when Zer0Fit and Open WebUI run on the same Docker host).
       # Uncomment the line below and ensure the 'open-webui' named volume exists:
       # - open-webui:/app/webui_data:ro
+      # Persist downloaded TimesFM and TabFM weights across container recreation.
+      - zerofit_huggingface_cache:/app/.cache/huggingface
     environment:
       - ZER0FIT_VRAM_TTL=${ZER0FIT_VRAM_TTL:-300}
       - ZER0FIT_UPLOAD_TTL_HOURS=${ZER0FIT_UPLOAD_TTL_HOURS:-6}
@@ -34,3 +36,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+volumes:
+  zerofit_huggingface_cache:

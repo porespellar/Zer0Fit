@@ -52,7 +52,7 @@ Before running `install.sh`, you need a Linux server with an NVIDIA GPU and Dock
 |---|---|---|
 | **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
 | **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
-| **Disk** | 20GB free | Docker image + model weights (~1.5GB each) |
+| **Disk** | 20GB free | Docker image plus the persistent Hugging Face cache (TimesFM 3.0 checkpoint is 1.32GB; allow several GB total) |
 
 ### Software
 
@@ -102,6 +102,8 @@ cd Zer0Fit
 ```
 
 The installer detects your architecture (ARM64 or x86_64), selects the correct CUDA base image and PyTorch wheels, builds the Docker container, and launches the server.
+
+> **Manual Compose use:** `./install.sh` is the recommended path because it writes the architecture-specific `.env`. If you run Compose directly, copy `.env.example` to `.env` and set `BUILDARCH`, `BASE_IMAGE`, and `TORCH_INDEX` for the target host before building. The defaults shown in `docker-compose.yml` are the x86_64/cu124 path; ARM64/Blackwell requires the ARM64/CUDA 13.2/cu130 values from `.env.example`.
 
 ### 2. Connect to Open WebUI
 
@@ -173,7 +175,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ---
 
-## Release verification (v1.2.0)
+## Release verification (v1.2.1)
 
 The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` package and the live `google/timesfm-3.0-pytorch` checkpoint on the included `airline_passengers.csv` sample:
 
@@ -181,6 +183,7 @@ The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` 
 - Point output shape `(3,)`; quantile output shape `(3, 9)`
 - All output values finite
 - CPU load: 24.66s; CPU inference: 0.16s (smoke-test timings, not a performance benchmark)
+- ARM64 and x86_64 release images both build and pass `/health`; model weights persist in the Compose-managed Hugging Face cache volume.
 
 TabFM remains on the v1.0.0 pretrained weights with the upstream source at commit `fbb665569425fd2f490c6576b3af967876fe11ff`, which matches official `main` as checked for this release. No newer official TabFM model release was found.
 

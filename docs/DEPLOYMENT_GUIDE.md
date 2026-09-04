@@ -49,7 +49,7 @@ Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, PyTorc
 |---|---|---|
 | **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
 | **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
-| **Disk** | 20GB free | Docker image + model weights (~1.5GB each) |
+| **Disk** | 20GB free | Docker image plus the persistent Hugging Face cache (TimesFM 3.0 checkpoint is 1.32GB; allow several GB total) |
 
 #### Software
 
@@ -102,6 +102,8 @@ Clone the repo onto your GPU server:
 git clone https://github.com/porespellar/Zer0Fit.git
 cd Zer0Fit
 ```
+
+`./install.sh` is the recommended deployment path because it detects the host architecture and writes the matching `.env`. If you run Docker Compose manually, copy `.env.example` to `.env` and set `BUILDARCH`, `BASE_IMAGE`, and `TORCH_INDEX` for the target host. The Compose defaults are the x86_64/cu124 path; ARM64/Blackwell requires the ARM64/CUDA 13.2/cu130 values shown in `.env.example`.
 
 The project structure:
 ```
@@ -421,7 +423,7 @@ Not supported natively — OpenCode's MCP support is limited to stdio transport 
 | Tools not showing in Open WebUI | Wrong URL or transport type | Try `http://host.docker.internal:8002/mcp` for Streamable HTTP |
 | "Could not resolve file_path" | File ID not found on server | Server needs Open WebUI volume mount for file ID resolution (see Part 2) |
 | Poor accuracy | Noisy data or weak target-feature relationship | Try a different target or add more columns |
-| Prediction takes long | First run downloads model weights | Wait for the first model load; TimesFM 3.0 downloads a 1.32 GB checkpoint on the first run, then reuses the disk cache. Load and inference times depend on GPU, CPU, storage, and network speed. |
+| Prediction takes long | First run downloads model weights | Wait for the first model load; TimesFM 3.0 downloads a 1.32 GB checkpoint on the first run, then reuses the persistent Compose Hugging Face cache volume. Load and inference times depend on GPU, CPU, storage, and network speed. |
 | Not enough rows | CSV too small for train/test split | Minimum ~10 rows, recommended 100+ |
 | "horizon must be an integer between 1 and 256" | Requested forecast beyond Zer0Fit's service limit | Use a smaller horizon, or change the validated limit in `server.py` after checking runtime, response size, and GPU memory |
 | "max_chunks capped" / large request fails | `max_chunks` exceeds the 10-chunk limit | Reduce to 10 or fewer, or increase `MAX_CHUNKS_LIMIT` in `server.py` |
