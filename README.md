@@ -52,7 +52,7 @@ Before running `install.sh`, you need a Linux server with an NVIDIA GPU and Dock
 |---|---|---|
 | **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
 | **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
-| **Disk** | 20GB free | Docker image plus the persistent Hugging Face cache (TimesFM 3.0 checkpoint is 1.32GB; allow several GB total) |
+| **Disk** | 40GB free | Docker image/build space plus the persistent Hugging Face cache. Current checkpoints are approximately 1.32GB (TimesFM), 6.56GB (TabFM classification), and 6.59GB (TabFM regression), or 14.47GB combined before image/build overhead. |
 
 ### Software
 
@@ -175,7 +175,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ---
 
-## Release verification (v1.2.2)
+## Release verification (v1.2.3)
 
 The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` package and the live `google/timesfm-3.0-pytorch` checkpoint on the included `airline_passengers.csv` sample:
 
@@ -194,7 +194,7 @@ TabFM remains on the v1.0.0 pretrained weights with the upstream source at commi
 
 The historical DGX Spark measurements below were collected before the TimesFM 3.0 migration and should not be treated as TimesFM 3.0 benchmark results. Re-run them on the target GPU and workload before making performance claims.
 
-The released checkpoint revision is `43046b85ec22d584a13f8098c2ed39c889e129c2`. Zer0Fit pins this revision so a later mutable Hugging Face `main` update cannot silently change the model behind an existing installation.
+The released checkpoint revision is `43046b85ec22d584a13f8098c2ed39c889e129c2`. Zer0Fit pins this revision so a later mutable Hugging Face `main` update cannot silently change the model behind an existing installation. The current model-cache total is approximately 14.47GB for TimesFM plus both TabFM task checkpoints; allow at least 40GB free for the cache, Docker image, and build layers.
 
 | Dataset | Type | Historical result | Time |
 |---|---|---|---|
@@ -336,7 +336,7 @@ codex exec "Use zer0fit to inspect the data and classify the species."
 | `ZER0FIT_PORT` | `8002` | Port exposed by the MCP server |
 | `ZER0FIT_UPLOAD_TTL_HOURS` | `6` | Hours before auto-deleting uploaded files |
 | `ZER0FIT_LOG_LEVEL` | `INFO` | Python logging level |
-| `ZER0FIT_UPLOAD_DIR` | `/app/data/uploads` | Directory for uploaded files |
+| `ZER0FIT_UPLOAD_DIR` | `/app/uploads` | Directory for uploaded files; not persisted by the default `./data` bind mount |
 | `ZER0FIT_WEBUI_DIR` | `/app/webui_data/uploads` | Open WebUI uploads directory for file ID resolution |
 | `ZER0FIT_MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
 | `ZER0FIT_DEBUG` | `false` | Enable Starlette debug mode (leaks tracebacks — for development only) |
@@ -382,7 +382,8 @@ Zer0Fit/
 ├── .env.example              # Config reference
 ├── Dockerfile                # Multi-arch (ARM64 + x86_64)
 ├── docker-compose.yml        # GPU profile, reads from .env
-├── requirements.txt          # Pinned Python deps
+├── requirements.txt          # Runtime dependency bounds
+├── requirements-dev.txt      # Offline test dependencies
 ├── model_manager.py          # VRAM governor (TTL, mutual exclusion)
 ├── pipelines.py              # Multi-format reader, chunking, downsampling
 ├── server.py                 # MCP server (port 8002, Streamable HTTP + SSE)
@@ -400,7 +401,8 @@ Zer0Fit/
 │   └── DEPLOYMENT_GUIDE.md   # Full guide for non-ML experts
 ├── openwebui/
 │   └── skill_content.md      # Open WebUI skill (markdown)
-└── data/
+├── .github/workflows/tests.yml # Offline regression CI
+├── data/
     ├── iris.csv              # Sample: classification (150 rows)
     ├── california_housing_small.csv  # Sample: regression (2,500 rows)
     └── airline_passengers.csv  # Sample: forecasting (144 points)
@@ -446,4 +448,20 @@ This project is licensed under the **Apache License, Version 2.0**. See [LICENSE
 - **Airline Passengers** — Box & Jenkins, 1976. Public domain time-series dataset.
 - **California Housing** — Pace & Barry, 1997. Public domain regression dataset.
 
-TimesFM is used under the terms of the Apache License 2.0. TabFM source code is Apache 2.0, but **TabFM model weights are licensed under the TabFM Non-Commercial License v1.0** — commercial use of the weights is prohibited. No modifications have been made to the original model weights. This project provides a server/transport layer around these models — the models themselves are separate works with their own licenses. See [DISCLAIMER.md](DISCLAIMER.md) and [ATTRIBUTION.md](ATTRIBUTION.md) for details.
+TimesFM source code and package are Apache 2.0, but **TimesFM 3.0 pretrained weights are separately licensed under the TimesFM Non-Commercial License v1.0** and are restricted to non-commercial, non-production use. TabFM source code is Apache 2.0, while **TabFM model weights are separately licensed under the TabFM Non-Commercial License v1.0**. No modifications have been made to the original model weights. This project provides a server/transport layer around these models; the models themselves are separate works with their own licenses. See [DISCLAIMER.md](DISCLAIMER.md) and [ATTRIBUTION.md](ATTRIBUTION.md) for details.
+
+### Testing
+
+Install the optional development dependencies and run the offline regression suite:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -q
+```
+
+The live TimesFM checkpoint smoke test is intentionally opt-in because it downloads model weights:
+
+```bash
+.venv/bin/python tests/smoke_timesfm3.py
+```

@@ -1,4 +1,4 @@
-# Zer0Fit — locked dependencies (installed AFTER the architecture-specific
+# Zer0Fit — runtime dependency bounds (installed AFTER the architecture-specific
 # torch/torchvision wheel selected by the Dockerfile).
 #
 # TimesFM 3.0 is installed after the architecture-specific torch wheel. Its

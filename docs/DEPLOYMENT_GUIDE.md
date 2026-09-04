@@ -49,7 +49,7 @@ Zer0Fit runs entirely inside Docker. You do **not** need to install CUDA, PyTorc
 |---|---|---|
 | **NVIDIA GPU** | 16GB VRAM | Tested on RTX 3090 (24GB), H100 (80GB), DGX Spark GB10 (128GB) |
 | **RAM** | 32GB | For loading CSVs into host memory before GPU chunking |
-| **Disk** | 20GB free | Docker image plus the persistent Hugging Face cache (TimesFM 3.0 checkpoint is 1.32GB; allow several GB total) |
+| **Disk** | 40GB free | Docker image/build space plus the persistent Hugging Face cache. Current checkpoints are approximately 1.32GB (TimesFM), 6.56GB (TabFM classification), and 6.59GB (TabFM regression), or 14.47GB combined before image/build overhead. |
 
 #### Software
 
@@ -103,6 +103,8 @@ git clone https://github.com/porespellar/Zer0Fit.git
 cd Zer0Fit
 ```
 
+The three model checkpoints currently consume approximately 14.47GB combined: 1.32GB for TimesFM, 6.56GB for TabFM classification, and 6.59GB for TabFM regression. Keep at least 40GB free to leave room for Docker image layers, temporary build data, and the persistent cache.
+
 `./install.sh` is the recommended deployment path because it detects the host architecture and writes the matching `.env`. If you run Docker Compose manually, copy `.env.example` to `.env` and set `BUILDARCH`, `BASE_IMAGE`, and `TORCH_INDEX` for the target host. The Compose defaults are the x86_64/cu124 path; ARM64/Blackwell requires the ARM64/CUDA 13.2/cu130 values shown in `.env.example`.
 
 The project structure:
@@ -132,7 +134,7 @@ Zer0Fit/
 ./install.sh
 ```
 
-The installer detects your architecture, selects the correct CUDA base image and PyTorch wheels, builds the Docker image, and launches the server. First build takes 5-10 minutes.
+The installer detects your architecture, selects the correct CUDA base image and PyTorch wheels, builds the Docker image, and launches the server. First build takes 5-10 minutes. It preloads TimesFM and the TabFM classification checkpoint; TabFM regression is cached on its first regression request because the VRAM governor keeps only one model/task hot at a time.
 
 ### Step 3: Verify the Server Is Running
 

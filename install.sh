@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # ── Version ────────────────────────────────────────────────────────────────
-ZER0FIT_VERSION="1.2.2"
+ZER0FIT_VERSION="1.2.3"
 
 # ── Colors ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -364,7 +364,7 @@ fi
 
 # ── Pre-load TabFM ────────────────────────────────────────────────────────
 echo ""
-echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0 weights..."
+echo -e "${BLUE}[2/2]${NC} Downloading TabFM v1.0.0 classification weights..."
 echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 
 # Stream logs again for TabFM download
@@ -382,7 +382,8 @@ kill "$LOG_PID" 2>/dev/null || true
 wait "$LOG_PID" 2>/dev/null || true
 
 if echo "$TABFM_RESULT" | grep -q '"tabfm": "loaded"'; then
-    ok "TabFM v1.0.0 weights cached on disk and loaded into VRAM ✅"
+    ok "TabFM v1.0.0 classification weights cached on disk and loaded into VRAM ✅"
+    info "TabFM regression weights are downloaded on the first regression request."
 else
     warn "TabFM pre-load result: $TABFM_RESULT"
     warn "TabFM will be downloaded on first tabular call instead."

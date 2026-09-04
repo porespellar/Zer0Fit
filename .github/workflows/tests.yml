@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run regression tests
+        run: pytest -q
+      - name: Compile Python modules
+        run: python -m py_compile model_manager.py pipelines.py server.py tests/test_timesfm3_migration.py tests/smoke_timesfm3.py
+      - name: Validate installer syntax
+        run: bash -n install.sh
