@@ -15,13 +15,14 @@ starlette>=0.37.2
 pandas>=2.2.0,<3.0.0
 scikit-learn>=1.4.0
 accelerate>=0.30.0
-huggingface_hub>=0.24.0
+huggingface_hub>=0.28.0
+safetensors>=0.5.3
 einops>=0.8.0
 absl-py>=2.0.0
 openpyxl>=3.1.0
 xlrd>=2.0.1
 # numpy is a transitive dep but pin explicitly — numpy 2.x has breaking changes
-numpy>=1.26.0,<2.0.0
+numpy>=1.26.4,<2.0.0
 # timesfm 3.0.1 provides the TimesFM3 PyTorch evaluator. The torch extra is
 # intentionally omitted because Docker installs the architecture-specific
 # torch wheel first; the evaluator uses that already-installed torch package.

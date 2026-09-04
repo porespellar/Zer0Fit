@@ -31,6 +31,11 @@ from typing import Any, Optional
 
 logger = logging.getLogger("zer0fit.model_manager")
 
+# Pin the exact Hugging Face revision exercised by the v1.2.2 release smoke
+# test. The model repository's `main` branch is mutable; keeping this separate
+# from the package version makes the downloaded weights reproducible.
+TIMESFM_CHECKPOINT_REVISION = "43046b85ec22d584a13f8098c2ed39c889e129c2"
+
 
 class ModelType(str, Enum):
     TIMESFM = "timesfm"
@@ -211,6 +216,7 @@ class ModelManager:
             return TimesFM3Evaluator.from_pretrained(
                 "google/timesfm-3.0-pytorch",
                 per_core_batch_size=4,
+                revision=TIMESFM_CHECKPOINT_REVISION,
             )
 
         # Offload to a thread so the async event loop is not blocked for

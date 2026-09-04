@@ -13,6 +13,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import numpy as np
+import pytest
 
 import model_manager
 import pipelines
@@ -42,7 +43,17 @@ def test_model_manager_loads_timesfm3_checkpoint(monkeypatch) -> None:
 
     assert isinstance(loaded, FakeEvaluator)
     assert calls["checkpoint"] == "google/timesfm-3.0-pytorch"
-    assert calls["kwargs"] == {"per_core_batch_size": 4}
+    assert calls["kwargs"] == {
+        "per_core_batch_size": 4,
+        "revision": model_manager.TIMESFM_CHECKPOINT_REVISION,
+    }
+
+
+def test_timesfm_pipeline_rejects_empty_context() -> None:
+    import pandas as pd
+
+    with pytest.raises(ValueError, match="at least one finite numeric"):
+        pipelines.downsample_for_timesfm(pd.Series([np.nan, np.nan]))
 
 
 def test_forecast_serializes_timesfm3_forecast_output(monkeypatch) -> None:

@@ -108,7 +108,13 @@ def downsample_for_timesfm(series: pd.Series) -> Tuple[np.ndarray, str]:
     Returns a tuple of (array, note) where *note* describes any downsampling
     that was applied (empty string if none).
     """
+    # TimesFM cannot produce a useful forecast from an empty or non-finite
+    # context. Treat infinities like missing values and fail explicitly rather
+    # than allowing a cryptic downstream tensor/model error.
+    series = series.replace([np.inf, -np.inf], np.nan)
     arr = series.dropna().to_numpy(dtype=np.float32)
+    if len(arr) == 0:
+        raise ValueError("time series must contain at least one finite numeric value")
     note = ""
     if len(arr) <= TIMESFM_MAX_CONTEXT:
         return arr, note
@@ -141,7 +147,7 @@ def make_timesfm_forecast_inputs(
     datetime_column: str | None = None,
 ) -> List[np.ndarray]:
     """Convenience: load + downsample → list with a single numpy array ready
-    for TimesFM `model.forecast(inputs=...)`."""
+    for TimesFM 3.0 `predict_batch(contexts=..., horizon=...)`."""
     series = load_time_series(file_path, target_column, datetime_column)
     arr, _note = downsample_for_timesfm(series)
     return [arr]

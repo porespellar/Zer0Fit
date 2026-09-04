@@ -343,7 +343,7 @@ The LLM summarizes: *"The upward trend continues with a clear seasonal pattern �
 
 **Limit:** `horizon` must be between 1 and 256 (the Zer0Fit service safety limit; TimesFM 3.0 uses evaluator-managed patch-rounded horizons). See [Limits & Configurability](../README.md#limits--configurability) to increase this.
 
-**Tip:** If your data has a datetime column, pass it as `datetime_column` — it helps the model understand temporal spacing (e.g., gaps, irregular intervals).
+**Tip:** If your data has a datetime column, pass it as `datetime_column` — Zer0Fit uses it to sort the series and choose a time-aware downsampling frequency when needed. The timestamps themselves are not passed to TimesFM 3.0.
 
 ### `zer0fit_tabular`
 

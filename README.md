@@ -175,7 +175,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ---
 
-## Release verification (v1.2.1)
+## Release verification (v1.2.2)
 
 The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` package and the live `google/timesfm-3.0-pytorch` checkpoint on the included `airline_passengers.csv` sample:
 
@@ -184,6 +184,7 @@ The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` 
 - All output values finite
 - CPU load: 24.66s; CPU inference: 0.16s (smoke-test timings, not a performance benchmark)
 - ARM64 and x86_64 release images both build and pass `/health`; model weights persist in the Compose-managed Hugging Face cache volume.
+- Empty and all-NaN time series are rejected with a clear validation error instead of reaching model inference.
 
 TabFM remains on the v1.0.0 pretrained weights with the upstream source at commit `fbb665569425fd2f490c6576b3af967876fe11ff`, which matches official `main` as checked for this release. No newer official TabFM model release was found.
 
@@ -192,6 +193,8 @@ TabFM remains on the v1.0.0 pretrained weights with the upstream source at commi
 ## Performance notes
 
 The historical DGX Spark measurements below were collected before the TimesFM 3.0 migration and should not be treated as TimesFM 3.0 benchmark results. Re-run them on the target GPU and workload before making performance claims.
+
+The released checkpoint revision is `43046b85ec22d584a13f8098c2ed39c889e129c2`. Zer0Fit pins this revision so a later mutable Hugging Face `main` update cannot silently change the model behind an existing installation.
 
 | Dataset | Type | Historical result | Time |
 |---|---|---|---|
@@ -233,7 +236,7 @@ Zero-shot time-series forecasting via Google TimesFM 3.0.
 | `file_path` | string | ✅ | File ID, upload path, or /app/data filename |
 | `target_column` | string | ✅ | Numeric column to forecast |
 | `horizon` | int | ✅ | Number of future steps to predict (**1–256**) |
-| `datetime_column` | string | — | Optional datetime column for temporal spacing |
+| `datetime_column` | string | — | Optional datetime column used to sort the series and support downsampling; timestamps are not passed to TimesFM |
 
 **Returns:** Point forecasts, quantile forecasts (confidence intervals), and series length.
 

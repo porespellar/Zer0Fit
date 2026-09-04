@@ -11,6 +11,7 @@ This project makes use of the following third-party models and libraries, each w
 - **Source code**: [google-research/timesfm](https://github.com/google-research/timesfm)
 - **Package**: `timesfm==3.0.1`
 - **Checkpoint**: [google/timesfm-3.0-pytorch](https://huggingface.co/google/timesfm-3.0-pytorch)
+- **Tested/pinned revision for Zer0Fit v1.2.2**: `43046b85ec22d584a13f8098c2ed39c889e129c2`
 - **Source license**: Apache License, Version 2.0
 - **Pretrained-weight license**: [TimesFM Non-Commercial License v1.0](https://huggingface.co/google/timesfm-3.0-pytorch/blob/main/LICENSE); restricted to non-commercial, non-production use
 - **Copyright**: 2024–2026 Google LLC
