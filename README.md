@@ -175,7 +175,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ---
 
-## Release verification (v1.2.3)
+## Release verification (v1.2.4)
 
 The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` package and the live `google/timesfm-3.0-pytorch` checkpoint on the included `airline_passengers.csv` sample:
 

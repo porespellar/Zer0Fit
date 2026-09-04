@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Zer0Fit is an MCP (Model Context Protocol) server that exposes Google's TimesFM 2.5 (time-series forecasting) and TabFM v1.0.0 (tabular classification/regression) foundation models to AI assistants. It runs on a GPU server (NVIDIA, 16GB+ VRAM) inside Docker, listening on port 8002 via Streamable HTTP + SSE.
+Zer0Fit is an MCP (Model Context Protocol) server that exposes Google's TimesFM 3.0 (time-series forecasting) and TabFM v1.0.0 (tabular classification/regression) foundation models to AI assistants. It runs on a GPU server (NVIDIA, 16GB+ VRAM) inside Docker, listening on port 8002 via Streamable HTTP + SSE.
 
 ## Repository Structure
 
@@ -11,7 +11,7 @@ server.py          → MCP server (Starlette, port 8002, SSE + Streamable HTTP)
 model_manager.py   → VRAM governor (asyncio.Lock, TTL sweeper, mutual exclusion)
 pipelines.py       → Data pipelines (downsampling for TimesFM, chunking for TabFM)
 install.sh         → One-command installer (architecture-aware: ARM64 + x86_64)
-Dockerfile         → Multi-arch Docker build (CUDA 12.4 x86_64, CUDA 13.2 ARM64 / cu130 wheels)
+Dockerfile         → Multi-arch Docker build (CUDA 12.6 base / cu124 x86_64, CUDA 13.2 ARM64 / cu130 wheels)
 docker-compose.yml  → GPU profile, reads from .env
 ```
 
@@ -35,11 +35,11 @@ docker-compose.yml  → GPU profile, reads from .env
 
 | Limit | Value | Constant |
 |---|---|---|
-| Forecast horizon | 1–256 | matches TimesFM `max_horizon` |
+| Forecast horizon | 1–256 | Zer0Fit service safety cap; TimesFM 3.0 manages decode windows |
 | Max tabular chunks | 10 (10K rows) | `MAX_CHUNKS_LIMIT` |
 | Chunk size | 1,000 rows | `pipelines.TABFM_CHUNK_SIZE` |
 | In-context size | 512 rows | `pipelines.TABFM_IN_CONTEXT_SIZE` |
-| TimesFM context | 1,024 tokens | `ForecastConfig.max_context` |
+| TimesFM context | 15,360 points | `pipelines.TIMESFM_MAX_CONTEXT` / TimesFM 3.0 evaluator ceiling |
 
 See README.md → "Limits & Configurability" for how to change these.
 
