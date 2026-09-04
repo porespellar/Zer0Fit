@@ -6,7 +6,7 @@ Zer0Fit is a server that exposes two of Google's foundation models to AI assista
 
 | Model | What It Does | Best For |
 |---|---|---|
-| **TimesFM 2.5** (200M) | Forecasts future values in a time series | "What will sales look like next quarter?" |
+| **TimesFM 3.0** | Forecasts future values in a time series | "What will sales look like next quarter?" |
 | **TabFM v1.0.0** | Classifies or predicts values in a table | "Will this customer churn?" or "What will this house sell for?" |
 
 Both models are **zero-shot** — they don't need to be trained on your data. You just give them examples and they make predictions immediately. No machine learning expertise required.
@@ -79,7 +79,7 @@ docker compose version
 # Should show Docker Compose version v2.x
 
 # 4. Verify NVIDIA Container Toolkit
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu24.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi
 # Should show your GPU inside the container — if this fails, the
 # NVIDIA Container Toolkit is not properly configured
 ```
@@ -317,7 +317,7 @@ The LLM summarizes: *"R² of 0.88 — the model explains 88% of the variation in
 **What you get back:**
 ```json
 {
-  "model": "timesfm-2.5-200m-pytorch",
+  "model": "timesfm-3.0-pytorch",
   "horizon": 12,
   "point_forecast": [441.5, 406.1, 459.1, ...],
   "quantile_forecast": [[...], [...], ...],
@@ -339,7 +339,7 @@ The LLM summarizes: *"The upward trend continues with a clear seasonal pattern �
 
 **Best for:** Data with a time dimension where you want to predict the future.
 
-**Limit:** `horizon` must be between 1 and 256 (matching TimesFM's compiled `max_horizon`). See [Limits & Configurability](../README.md#limits--configurability) to increase this.
+**Limit:** `horizon` must be between 1 and 256 (the Zer0Fit service safety limit; TimesFM 3.0 uses evaluator-managed patch-rounded horizons). See [Limits & Configurability](../README.md#limits--configurability) to increase this.
 
 **Tip:** If your data has a datetime column, pass it as `datetime_column` — it helps the model understand temporal spacing (e.g., gaps, irregular intervals).
 
@@ -421,9 +421,9 @@ Not supported natively — OpenCode's MCP support is limited to stdio transport 
 | Tools not showing in Open WebUI | Wrong URL or transport type | Try `http://host.docker.internal:8002/mcp` for Streamable HTTP |
 | "Could not resolve file_path" | File ID not found on server | Server needs Open WebUI volume mount for file ID resolution (see Part 2) |
 | Poor accuracy | Noisy data or weak target-feature relationship | Try a different target or add more columns |
-| Prediction takes long | First run downloads model weights | Wait ~60s for model load; subsequent calls are faster |
+| Prediction takes long | First run downloads model weights | Wait for the first model load; TimesFM 3.0 downloads a 1.32 GB checkpoint on the first run, then reuses the disk cache. Load and inference times depend on GPU, CPU, storage, and network speed. |
 | Not enough rows | CSV too small for train/test split | Minimum ~10 rows, recommended 100+ |
-| "horizon must be an integer between 1 and 256" | Requested forecast beyond TimesFM's compiled limit | Use a smaller horizon, or increase `max_horizon` in both `server.py` and `model_manager.py` |
+| "horizon must be an integer between 1 and 256" | Requested forecast beyond Zer0Fit's service limit | Use a smaller horizon, or change the validated limit in `server.py` after checking runtime, response size, and GPU memory |
 | "max_chunks capped" / large request fails | `max_chunks` exceeds the 10-chunk limit | Reduce to 10 or fewer, or increase `MAX_CHUNKS_LIMIT` in `server.py` |
 
 ### VRAM Management

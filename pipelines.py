@@ -2,9 +2,9 @@
 Zer0Fit pipelines.py — the OOM-Safe Data Streamers.
 
 Responsibilities:
-  * Temporal downsampler for TimesFM: if a univariate time series exceeds the
-    1,024 context window, aggregate it to a lower frequency so the model
-    never receives more tokens than its context window.
+  * Temporal downsampler for TimesFM 3.0: if a univariate time series exceeds
+    the 15,360-point evaluator context window, aggregate it to a lower
+    frequency so the model never receives more tokens than its context window.
   * Tabular ensemble batcher for TabFM: slice CSVs into 1,000-row
     blocks so that in-context learning never OOMs the GPU. Note: the full
     DataFrame is loaded into host RAM before chunking — this prevents GPU
@@ -25,10 +25,10 @@ import pandas as pd
 
 logger = logging.getLogger("zer0fit.pipelines")
 
-# TimesFM 2.5 supports up to 16k context, but the compiled ForecastConfig in
-# model_manager uses max_context=1024 (matching the build spec). We respect
-# that ceiling here.
-TIMESFM_MAX_CONTEXT = 1024
+# TimesFM 3.0 supports up to 15,360 context points. Keep this in sync with
+# the upstream evaluator's global context ceiling so long inputs are bounded
+# before they reach the model.
+TIMESFM_MAX_CONTEXT = 15360
 TABFM_CHUNK_SIZE = 1000
 TABFM_IN_CONTEXT_SIZE = 512
 
@@ -103,7 +103,7 @@ def load_time_series(
 
 def downsample_for_timesfm(series: pd.Series) -> Tuple[np.ndarray, str]:
     """Return a 1-D numpy array suitable for TimesFM, downsampling if the
-    series exceeds the 1,024-token context window.
+    series exceeds the 15,360-point TimesFM 3.0 context window.
 
     Returns a tuple of (array, note) where *note* describes any downsampling
     that was applied (empty string if none).

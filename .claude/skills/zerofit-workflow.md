@@ -28,7 +28,7 @@ claude mcp list
 |---|---|
 | `zer0fit_inspect` | Discover column names, data types, row count from a file |
 | `zer0fit_upload_csv` | Upload a data file (CSV, XLS, XLSX, JSON, JSONL) via base64 |
-| `zer0fit_forecast` | Zero-shot time-series forecasting via TimesFM 2.5 |
+| `zer0fit_forecast` | Zero-shot time-series forecasting via TimesFM 3.0 |
 | `zer0fit_tabular` | Zero-shot classification or regression via TabFM v1.0.0 |
 
 ## Workflow
@@ -96,7 +96,7 @@ The tools return pre-computed metrics. Use these directly:
 
 | Parameter | Range | Notes |
 |---|---|---|
-| `horizon` | 1–256 | Matches TimesFM's compiled `max_horizon` |
+| `horizon` | 1–256 | Zer0Fit service safety cap; TimesFM 3.0 uses evaluator-managed patch-rounded decode windows |
 | `max_chunks` | 0–10 | 0 = maximum (10). Each chunk = 1,000 rows. |
 | `target_column` | must exist | Discovered via `zer0fit_inspect` |
 | File size | unlimited on disk | But only 10K rows processed per tabular request |

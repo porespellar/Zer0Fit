@@ -35,8 +35,8 @@ By installing, deploying, configuring, or using Zer0Fit — or by acting on any 
 
 Zer0Fit uses Google's TimesFM and TabFM models. These are independent works with their own licenses, limitations, and potential biases. The developer of Zer0Fit is not affiliated with or endorsed by Google.
 
-- **TimesFM 2.5** — model weights and source code under Apache License 2.0
-- **TabFM v1.0.0** — source code under Apache 2.0, but **model weights are under the TabFM Non-Commercial License v1.0**, which prohibits commercial use. You must review and comply with this license before deploying Zer0Fit with TabFM.
+- **TimesFM 3.0** — source code under Apache License 2.0; the pretrained `google/timesfm-3.0-pytorch` weights are under the [TimesFM Non-Commercial License v1.0](https://huggingface.co/google/timesfm-3.0-pytorch/blob/main/LICENSE), which restricts non-commercial, non-production use
+- **TabFM v1.0.0** — source code under Apache 2.0, but **model weights are under the TabFM Non-Commercial License v1.0**, which restricts non-commercial, non-production use. You must review and comply with these licenses before deploying Zer0Fit with either pretrained model.
 
 See [ATTRIBUTION.md](ATTRIBUTION.md) for full license texts and citations.
 

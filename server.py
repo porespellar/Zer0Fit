@@ -173,7 +173,7 @@ async def list_tools() -> Any:  # noqa: ANN201
         Tool(
             name="zer0fit_forecast",
             description=(
-                "Zero-shot time-series forecasting via Google TimesFM 2.5. "
+                "Zero-shot time-series forecasting via Google TimesFM 3.0. "
                 "Provide EITHER file_path (for files on the server) "
                 "or file_data (for files attached in the chat). "
                 "When a file is attached, pass its raw CSV contents as "
@@ -595,15 +595,36 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN20
                 file_path, target_column, datetime_column
             )
             tfm = await _mgr.get_model(ModelType.TIMESFM)
-            point_forecast, quantile_forecast = await asyncio.wait_for(
-                asyncio.to_thread(tfm.forecast, horizon=horizon, inputs=inputs),
+
+            def _run_timesfm3_forecast():
+                outputs = list(
+                    tfm.predict_batch(
+                        contexts=inputs,
+                        horizon=horizon,
+                        return_quantiles=True,
+                        use_symmetric_averaging=True,
+                        make_positive=True,
+                        sort_quantiles=True,
+                        padding_mode="none",
+                    )
+                )
+                if not outputs or outputs[0].forecast is None:
+                    raise RuntimeError("TimesFM 3.0 returned no forecast output")
+                return outputs[0]
+
+            output = await asyncio.wait_for(
+                asyncio.to_thread(_run_timesfm3_forecast),
                 timeout=120,
             )
             result = {
-                "model": "timesfm-2.5-200m-pytorch",
+                "model": "timesfm-3.0-pytorch",
                 "horizon": horizon,
-                "point_forecast": point_forecast.tolist(),
-                "quantile_forecast": quantile_forecast.tolist(),
+                "point_forecast": np.asarray(output.forecast).tolist(),
+                "quantile_forecast": (
+                    np.asarray(output.quantiles).tolist()
+                    if output.quantiles is not None
+                    else None
+                ),
                 "series_length": len(inputs[0]),
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -837,7 +858,7 @@ async def handle_sse(request):
     async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
         init_options = InitializationOptions(
             server_name="zer0fit-mcp",
-            server_version="1.1.0",
+            server_version="1.2.0",
             capabilities=app_server.get_capabilities(
                 notification_options=NotificationOptions(),
                 experimental_capabilities=None,
@@ -863,7 +884,7 @@ async def health(request):
             "health": "/health",
             "preload": "/preload (POST — download weights to cache + load into VRAM)",
         },
-        "version": "1.1.0",
+        "version": "1.2.0",
     })
 
 

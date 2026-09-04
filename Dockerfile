@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
-# Multi-arch build for x86_64 (CUDA 12.4) and ARM64 (CUDA 13.2 Blackwell).
-ARG BASE_IMAGE=nvidia/cuda:12.4.1-base-ubuntu24.04
+# Multi-arch build for x86_64 (CUDA 12.6 base, cu124 wheels) and ARM64 (CUDA 13.2 Blackwell).
+ARG BASE_IMAGE=nvidia/cuda:12.6.3-base-ubuntu24.04
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -25,6 +25,9 @@ WORKDIR /app
 # PyTorch-only import fix without JAX #97, ICL context caching with int8
 # KV-cache, shared hold-out NNLS/calibration #85, dtype + sklearn-pandas
 # fixes). API surface used by model_manager.py is unchanged.
+#
+# TimesFM 3.0 is a larger model than the archived 2.5 checkpoint and uses
+# the new timesfm3 evaluator API.
 ARG TABFM_REF=fbb665569425fd2f490c6576b3af967876fe11ff
 RUN git clone https://github.com/google-research/tabfm.git /opt/tabfm && \
     cd /opt/tabfm && git checkout ${TABFM_REF} && \
@@ -50,7 +53,7 @@ RUN if [ -n "$TORCH_INDEX" ]; then \
             pip3 install --no-cache-dir torch torchvision --index-url "$TORCH_INDEX" ; \
         fi ; \
     elif [ "$TARGETARCH" = "amd64" ]; then \
-        echo "Installing torch for x86_64 (CUDA 12.4)..." && \
+        echo "Installing torch for x86_64 (CUDA 12.6 base, cu124 wheels)..." && \
         pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124 ; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
         echo "Installing torch for ARM64 (CUDA 13.2 / cu130 wheels / Blackwell)..." && \

@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # ── Version ────────────────────────────────────────────────────────────────
-ZER0FIT_VERSION="1.1.0"
+ZER0FIT_VERSION="1.2.0"
 
 # ── Colors ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -39,7 +39,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 echo ""
 echo -e "${BOLD}  ╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}  ║     Zer0Fit MCP v${ZER0FIT_VERSION} — Zero-Shot Inference Server       ║${NC}"
-echo -e "${BOLD}  ║     TimesFM 2.5  +  TabFM v1.0.0  via  MCP / SSE          ║${NC}"
+echo -e "${BOLD}  ║     TimesFM 3.0  +  TabFM v1.0.0  via  MCP / SSE          ║${NC}"
 echo -e "${BOLD}  ╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -98,9 +98,9 @@ info "Detected architecture: $ARCH"
 case "$ARCH" in
     x86_64|amd64)
         BUILDARCH="amd64"
-        BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
+        BASE_IMAGE="nvidia/cuda:12.6.3-base-ubuntu24.04"
         TORCH_INDEX="https://download.pytorch.org/whl/cu124"
-        ARCH_LABEL="x86_64 (CUDA 12.4)"
+        ARCH_LABEL="x86_64 (CUDA 12.6 base / cu124 wheels)"
         ;;
     aarch64|arm64)
         BUILDARCH="arm64"
@@ -111,9 +111,9 @@ case "$ARCH" in
     *)
         warn "Unknown architecture: $ARCH. Defaulting to x86_64."
         BUILDARCH="amd64"
-        BASE_IMAGE="nvidia/cuda:12.4.1-base-ubuntu24.04"
+        BASE_IMAGE="nvidia/cuda:12.6.3-base-ubuntu24.04"
         TORCH_INDEX="https://download.pytorch.org/whl/cu124"
-        ARCH_LABEL="x86_64 (CUDA 12.4) [fallback]"
+        ARCH_LABEL="x86_64 (CUDA 12.6 base / cu124 wheels) [fallback]"
         ;;
 esac
 ok "Target: $ARCH_LABEL"
@@ -259,7 +259,7 @@ echo -e "${BOLD} Ready to build and deploy:${NC}"
 echo -e "  • Zer0Fit MCP Server v${ZER0FIT_VERSION}"
 echo -e "  • CUDA base image: $BASE_IMAGE"
 echo -e "  • PyTorch (pre-built, $ARCH_LABEL)"
-echo -e "  • TimesFM 2.5 (200M params) — weights downloaded to cache after build"
+echo -e "  • TimesFM 3.0 (larger checkpoint) — weights downloaded to cache after build"
 echo -e "  • TabFM v1.0.0 — weights downloaded to cache after build"
 echo -e "  • MCP server on port $ZER0FIT_PORT"
 echo ""
@@ -327,7 +327,7 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${BOLD} Downloading model weights and loading into VRAM${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "  This downloads model weights from Hugging Face Hub (~1.5GB total)"
+echo "  This downloads model weights from Hugging Face Hub (several GB total)"
 echo "  to the container's disk cache, then loads them into GPU VRAM."
 echo "  Weights are cached on disk — subsequent restarts load from cache"
 echo "  (no re-download). VRAM residency is cleared after 5 min idle."
@@ -335,7 +335,7 @@ echo "  This takes 1-3 minutes per model (depending on network speed)."
 echo ""
 
 # ── Pre-load TimesFM ──────────────────────────────────────────────────────
-echo -e "${BLUE}[1/2]${NC} Downloading TimesFM 2.5 weights (200M params)..."
+echo -e "${BLUE}[1/2]${NC} Downloading TimesFM 3.0 weights..."
 echo "    Downloading from huggingface.co → disk cache, then loading into VRAM..."
 # The preload endpoint triggers the download + VRAM load.
 # We also tail the container logs so the user sees download progress.
@@ -356,7 +356,7 @@ kill "$LOG_PID" 2>/dev/null || true
 wait "$LOG_PID" 2>/dev/null || true
 
 if echo "$TIMESFM_RESULT" | grep -q '"timesfm": "loaded"'; then
-    ok "TimesFM 2.5 weights cached on disk and loaded into VRAM ✅"
+    ok "TimesFM 3.0 weights cached on disk and loaded into VRAM ✅"
 else
     warn "TimesFM pre-load result: $TIMESFM_RESULT"
     warn "TimesFM will be downloaded on first forecast call instead."

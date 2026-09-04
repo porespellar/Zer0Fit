@@ -4,7 +4,7 @@
   <img src="images/header.png" alt="Zer0Fit — Zero-shot Forecasting & Tabular MCP Server" width="100%">
 </p>
 
-Zer0Fit exposes Google's **TimesFM 2.5** (time-series forecasting) and **TabFM v1.0.0** (tabular classification/regression) foundation models to AI assistants via the Model Context Protocol (SSE/Streamable HTTP).
+Zer0Fit exposes Google's **TimesFM 3.0** (time-series forecasting) and **TabFM v1.0.0** (tabular classification/regression) foundation models to AI assistants via the Model Context Protocol (SSE/Streamable HTTP).
 
 Zero-shot means no training required — just connect the MCP to a chat client / harness + LLM of your choice, attach a CSV, and describe what you want to predict. No ML expertise, no hyperparameter tuning, no feature engineering.
 
@@ -26,7 +26,7 @@ Zero-shot means no training required — just connect the MCP to a chat client /
 
 | Feature | Details |
 |---|---|
-| **Time-series forecasting** | Google TimesFM 2.5 (200M params) — predicts future values from historical data |
+| **Time-series forecasting** | Google TimesFM 3.0 — predicts future values from historical data |
 | **Tabular classification** | Google TabFM v1.0.0 — predicts categories/labels from tabular data |
 | **Tabular regression** | Google TabFM v1.0.0 — predicts continuous numeric values from tabular data |
 | **Chat-attached file support** | Use Open WebUI file IDs directly — attach a file in the chat, and `zer0fit_inspect` resolves it automatically |
@@ -82,7 +82,7 @@ docker compose version
 # Should show Docker Compose version v2.x
 
 # 4. Verify NVIDIA Container Toolkit
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu24.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi
 # Should show your GPU inside the container — if this fails, the
 # NVIDIA Container Toolkit is not properly configured
 ```
@@ -144,7 +144,7 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 | If your prompt says… | Tool called | Model | task_type |
 |---|---|---|---|
-| "forecast", "future", "predict next N months", "extrapolate" | `zer0fit_forecast` | TimesFM 2.5 | `forecast` |
+| "forecast", "future", "predict next N months", "extrapolate" | `zer0fit_forecast` | TimesFM 3.0 | `forecast` |
 | "classify", "categorize", "what species", "label" | `zer0fit_tabular` | TabFM v1.0.0 | `classification` |
 | "predict prices", "estimate", "regression", "continuous value" | `zer0fit_tabular` | TabFM v1.0.0 | `regression` |
 | *(file attached to chat)* | `zer0fit_inspect` → then appropriate tool | *(auto)* | *(auto)* |
@@ -173,12 +173,27 @@ This teaches the LLM which tool to use and how to interpret metrics.
 
 ---
 
-## Performance (Tested on DGX Spark GB10)
+## Release verification (v1.2.0)
 
-| Dataset | Type | Accuracy / R² | Time |
+The TimesFM 3.0 integration was smoke-tested with the released `timesfm==3.0.1` package and the live `google/timesfm-3.0-pytorch` checkpoint on the included `airline_passengers.csv` sample:
+
+- 144 context points; 3-step forecast
+- Point output shape `(3,)`; quantile output shape `(3, 9)`
+- All output values finite
+- CPU load: 24.66s; CPU inference: 0.16s (smoke-test timings, not a performance benchmark)
+
+TabFM remains on the v1.0.0 pretrained weights with the upstream source at commit `fbb665569425fd2f490c6576b3af967876fe11ff`, which matches official `main` as checked for this release. No newer official TabFM model release was found.
+
+---
+
+## Performance notes
+
+The historical DGX Spark measurements below were collected before the TimesFM 3.0 migration and should not be treated as TimesFM 3.0 benchmark results. Re-run them on the target GPU and workload before making performance claims.
+
+| Dataset | Type | Historical result | Time |
 |---|---|---|---|
 | Iris (150 rows) | Classification | 94.67% | ~76s |
-| Boston Housing (506 rows) | Regression | R² = 0.91, MAE = 1.84 | ~90s |
+| California Housing (sample) | Regression | R² = 0.91, MAE = 1.84 | ~90s |
 | Airline Passengers (144 points) | Forecast | Captured seasonal pattern | ~11s |
 
 ---
@@ -208,7 +223,7 @@ Upload a data file to the server (for files not already attached in chat).
 
 ### `zer0fit_forecast`
 
-Zero-shot time-series forecasting via Google TimesFM 2.5.
+Zero-shot time-series forecasting via Google TimesFM 3.0.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -328,11 +343,11 @@ Zer0Fit enforces several limits to protect the GPU server from OOM crashes, runa
 
 | Limit | Default | Location | Why It Exists | How to Change |
 |---|---|---|---|---|
-| **Forecast horizon** | 1–256 | `server.py` `zer0fit_forecast` handler | TimesFM is compiled with `max_horizon=256`; larger values cause inference errors | Edit the validation check, also update `max_horizon` in `model_manager.py:_load_timesfm_locked()` |
+| **Forecast horizon** | 1–256 | `server.py` `zer0fit_forecast` handler | Zer0Fit service safety cap for runtime, GPU memory, and response size | Edit the validation check after testing the impact |
 | **Max chunks (tabular)** | 10 | `server.py` `MAX_CHUNKS_LIMIT` | Each chunk = 1,000 rows. Unbounded chunks cause GPU OOM and massive JSON responses that crash the MCP connection | Change `MAX_CHUNKS_LIMIT` constant in `server.py` |
 | **Chunk size** | 1,000 rows | `pipelines.py` `TABFM_CHUNK_SIZE` | Controls how many rows fit in a single GPU forward pass | Edit the constant; larger = more context but more VRAM |
 | **In-context size** | 512 rows | `pipelines.py` `TABFM_IN_CONTEXT_SIZE` | Rows from each chunk used as "examples" for zero-shot learning | Edit the constant; larger = better accuracy but more VRAM |
-| **Context window** | 1,024 tokens | `model_manager.py` `max_context` in `ForecastConfig` | TimesFM input ceiling for the compiled model | Edit `max_context` in `_load_timesfm_locked()` |
+| **Context window** | 15,360 points | `pipelines.py` `TIMESFM_MAX_CONTEXT` | TimesFM 3.0 evaluator input ceiling | Change only with a matching upstream-compatible model and tests |
 | **Upload TTL** | 6 hours | `ZER0FIT_UPLOAD_TTL_HOURS` env var | Auto-cleans uploaded files to prevent disk fill | Set the env var in `docker-compose.yml` |
 | **VRAM TTL** | 300 seconds | `ZER0FIT_VRAM_TTL` env var | Auto-unloads idle models to free GPU memory | Set the env var in `docker-compose.yml` |
 | **Allowed data paths** | `/app/data/`, `/app/webui_data/` | `server.py` `ALLOWED_ABS_DIRS` | Security — restricts which directories the server can read files from | Edit the tuple in `_resolve_path()` |
@@ -349,20 +364,7 @@ MAX_CHUNKS_LIMIT = 10    # → 20, 50, etc.
 
 ### Increasing the Forecast Horizon
 
-If you need forecasts beyond 256 steps, both the validation and the model config must be updated:
-
-```python
-# 1. In server.py, update the validation:
-if horizon <= 0 or horizon > 512:  # was 256
-
-# 2. In model_manager.py, update the ForecastConfig:
-tfm.compile(
-    timesfm.ForecastConfig(
-        max_horizon=512,  # was 256
-        ...
-    )
-)
-```
+If you need forecasts beyond 256 steps, update the validation check in `server.py` and review the response-size, runtime, and GPU-memory impact on your target hardware. TimesFM 3.0 does not use the former `ForecastConfig` compile step; its evaluator handles patch-rounded decode windows internally.
 
 ---
 
@@ -418,15 +420,18 @@ Zer0Fit/
 
 This project is licensed under the **Apache License, Version 2.0**. See [LICENSE](LICENSE) for details.
 
-### Google TimesFM 2.5
-- **Source**: [google-research/timesfm](https://github.com/google-research/timesfm)
-- **License**: Apache License, Version 2.0
-- **Copyright**: 2024–2026 Google LLC
+### Google TimesFM 3.0
+- **Source code**: [google-research/timesfm](https://github.com/google-research/timesfm)
+- **Package**: `timesfm==3.0.1`
+- **Checkpoint**: [google/timesfm-3.0-pytorch](https://huggingface.co/google/timesfm-3.0-pytorch)
+- **Source license**: Apache License, Version 2.0
+- **Pretrained-weight license**: [TimesFM Non-Commercial License v1.0](https://huggingface.co/google/timesfm-3.0-pytorch/blob/main/LICENSE); non-commercial, non-production use only
 - **Citation**: *Das, A., et al. "A decoder-only foundation model for time-series forecasting." ICML 2024.* — [Paper](https://openreview.net/forum?id=jn2iTJas6h)
 
 ### Google TabFM v1.0.0
 - **Source**: [google-research/tabfm](https://github.com/google-research/tabfm)
-- **License**: TabFM Non-Commercial License v1.0 (weights); Apache 2.0 (source code)
+- **Release**: v1.0.1 source snapshot at commit `fbb665569425fd2f490c6576b3af967876fe11ff`
+- **Weights**: v1.0.0, under the [TabFM Non-Commercial License v1.0](https://huggingface.co/google/tabfm-1.0.0-pytorch/blob/main/LICENSE)
 - **Copyright**: 2026 Google LLC
 - **Citation**: *TabFM: A Zero-Shot Foundation Model for Tabular Data* — [Google Research Blog](https://research.google/blog/introducing-tabfm-a-zero-shot-foundation-model-for-tabular-data/)
 

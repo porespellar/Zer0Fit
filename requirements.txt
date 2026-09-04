@@ -1,10 +1,9 @@
 # Zer0Fit — locked dependencies (installed AFTER the architecture-specific
 # torch/torchvision wheel selected by the Dockerfile).
 #
-# NOTE: tabfm is NOT on PyPI. It is git-installed in the Dockerfile (and via
-# install.sh for local non-container dev) with its [pytorch] extra and
-# --no-deps so it never overwrites the carefully selected torch wheel.
-
+# TimesFM 3.0 is installed after the architecture-specific torch wheel. Its
+# base package contains the PyTorch evaluator; do not add the [torch] extra,
+# which would allow the resolver to replace the selected CUDA wheel.
 # mcp 2.x removed the low-level Server.list_tools()/call_tool() decorator
 # API that server.py uses — capped below 2.0 until the server is migrated.
 mcp[cli]>=1.0.0,<2.0.0
@@ -23,7 +22,7 @@ openpyxl>=3.1.0
 xlrd>=2.0.1
 # numpy is a transitive dep but pin explicitly — numpy 2.x has breaking changes
 numpy>=1.26.0,<2.0.0
-# timesfm is installed AFTER the arch-specific torch wheel. The [torch] extra
-# declares torch as a dep — if pip's resolver tries to upgrade torch here,
-# use --no-deps for this line in the Dockerfile or pin torch version.
-timesfm[torch]==2.0.2
+# timesfm 3.0.1 provides the TimesFM3 PyTorch evaluator. The torch extra is
+# intentionally omitted because Docker installs the architecture-specific
+# torch wheel first; the evaluator uses that already-installed torch package.
+timesfm==3.0.1

@@ -6,16 +6,19 @@ This project makes use of the following third-party models and libraries, each w
 
 ---
 
-## Google TimesFM 2.5
+## Google TimesFM 3.0
 
-- **Source**: [https://github.com/google-research/timesfm](https://github.com/google-research/timesfm)
-- **License**: Apache License, Version 2.0
+- **Source code**: [google-research/timesfm](https://github.com/google-research/timesfm)
+- **Package**: `timesfm==3.0.1`
+- **Checkpoint**: [google/timesfm-3.0-pytorch](https://huggingface.co/google/timesfm-3.0-pytorch)
+- **Source license**: Apache License, Version 2.0
+- **Pretrained-weight license**: [TimesFM Non-Commercial License v1.0](https://huggingface.co/google/timesfm-3.0-pytorch/blob/main/LICENSE); restricted to non-commercial, non-production use
 - **Copyright**: 2024–2026 Google LLC
 - **Citation**:
   > Das, A., et al. "A decoder-only foundation model for time-series forecasting."
   > ICML 2024. https://openreview.net/forum?id=jn2iTJas6h
 
-### TimesFM License Notice
+### TimesFM Source License Notice
 
 ```
 Copyright 2024–2026 Google LLC
@@ -33,7 +36,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-TimesFM is used as an unmodified dependency. Model weights are downloaded at runtime from Hugging Face Hub under the TimesFM model card terms.
+Zer0Fit uses the unmodified TimesFM 3.0 package and downloads its pretrained weights at runtime. The source code and the pretrained weights have separate license terms; the TimesFM 3.0 weights must not be used for commercial or production purposes.
 
 ---
 
@@ -69,6 +72,10 @@ TabFM is used as an unmodified dependency. Model weights are downloaded at runti
 > **Note:** The TabFM Non-Commercial License restricts commercial use of the model weights. Ensure your use case complies with the license terms before deployment.
 
 ---
+
+## TabFM update status
+
+The latest official TabFM release remains **v1.0.1**, and the pinned source commit `fbb665569425fd2f490c6576b3af967876fe11ff` is identical to the current upstream `main` branch as checked for this release. TabFM still loads the v1.0.0 pretrained weights; no newer official model-weight release was found.
 
 ## Python Dependencies
 

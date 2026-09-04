@@ -2,7 +2,7 @@
 Zer0Fit model_manager.py — the Dynamic VRAM Governor.
 
 Responsibilities:
-  * Asynchronously load / evict TimesFM and TabFM foundation models.
+  * Asynchronously load / evict TimesFM 3.0 and TabFM foundation models.
   * Enforce mutual exclusion: only one foundation model hot in VRAM at a time.
   * TTL-based idle eviction: if no tool invocation touches the active model
     within ZER0FIT_VRAM_TTL seconds (default 300), automatically purge it,
@@ -200,30 +200,23 @@ class ModelManager:
     # ------------------------------------------------------------------ #
 
     async def _load_timesfm_locked(self) -> Any:
-        logger.info("Loading TimesFM 2.5 (200M, PyTorch backend)...")
+        logger.info("Loading TimesFM 3.0 (PyTorch backend)...")
 
         def _load():
-            import timesfm
-            tfm = timesfm.TimesFM_2p5_200M_torch.from_pretrained(
-                "google/timesfm-2.5-200m-pytorch"
+            # TimesFM 3.0 has a new evaluator API and checkpoint. Keep this
+            # import lazy so CPU-only tests can exercise the manager without
+            # importing the heavy model package.
+            from timesfm3 import TimesFM3Evaluator
+
+            return TimesFM3Evaluator.from_pretrained(
+                "google/timesfm-3.0-pytorch",
+                per_core_batch_size=4,
             )
-            tfm.compile(
-                timesfm.ForecastConfig(
-                    max_context=1024,
-                    max_horizon=256,
-                    normalize_inputs=True,
-                    use_continuous_quantile_head=True,
-                    force_flip_invariance=True,
-                    infer_is_positive=True,
-                    fix_quantile_crossing=True,
-                )
-            )
-            return tfm
 
         # Offload to a thread so the async event loop is not blocked for
-        # the (potentially minutes-long) PyTorch model load + compile.
+        # the (potentially minutes-long) PyTorch model load.
         tfm = await asyncio.to_thread(_load)
-        logger.info("TimesFM loaded and compiled successfully.")
+        logger.info("TimesFM 3.0 loaded successfully.")
         return tfm
 
     async def _load_tabfm_locked(self, task_type: str = "classification") -> Any:
